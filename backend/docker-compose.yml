@@ -6,16 +6,16 @@ services:
     environment:
       POSTGRES_DB: secondbrain
       POSTGRES_USER: secondbrain
-      POSTGRES_PASSWORD: demo123
+      POSTGRES_PASSWORD: secondbrain123
     ports:
       - "5432:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U secondbrain -d secondbrain"]
+      test: ["CMD-SHELL", "pg_isready"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
 
   # Redis 缓存
   redis:
@@ -30,7 +30,7 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
 
   # MinIO 对象存储
   minio:
@@ -39,7 +39,7 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: demo123456
+      MINIO_ROOT_PASSWORD: minioadmin
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -47,8 +47,8 @@ services:
       - ./data/minio:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
+      interval: 30s
+      timeout: 20s
       retries: 3
 
   # Qdrant 向量数据库
@@ -60,30 +60,34 @@ services:
     volumes:
       - ./data/qdrant:/qdrant/storage
 
-  # 后端API服务（开发模式，热重载）
-  api:
+  # 后端API服务（开发模式，支持热重载）
+  backend:
     build: .
-    container_name: secondbrain-api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    container_name: secondbrain-backend
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: "postgresql+asyncpg://secondbrain:demo123@postgres:5432/secondbrain"
-      REDIS_URL: "redis://redis:6379"
-      MINIO_ENDPOINT: "minio:9000"
-      QDRANT_HOST: "qdrant"
-      SECRET_KEY: "demo-secret-key-please-change-in-production"
-      DEBUG: "true"
+      # 数据库连接
+      DATABASE_URL: postgresql+asyncpg://secondbrain:secondbrain123@postgres:5432/secondbrain
+      # Redis连接
+      REDIS_URL: redis://redis:6379
+      # MinIO配置
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      # Qdrant配置
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app
-      - ./alembic:/alembic
-      - ./alembic.ini:/alembic.ini
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./uploads:/app/uploads
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
+      - postgres
+      - redis
+      - minio
+      - qdrant
+    restart: unless-stopped
