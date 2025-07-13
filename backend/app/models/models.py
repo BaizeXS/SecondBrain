@@ -53,6 +53,7 @@ class User(Base, TimestampMixin):
     # 使用统计
     daily_usage: Mapped[int] = mapped_column(Integer, default=0)
     last_reset_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # 偏好设置
     preferences: Mapped[dict[str, Any] | None] = mapped_column(JSON)
@@ -243,7 +244,9 @@ class Annotation(Base, TimestampMixin):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
     # 标注内容
-    type: Mapped[str] = mapped_column(String(20))  # highlight, note, bookmark
+    type: Mapped[str] = mapped_column(
+        String(20)
+    )  # highlight, underline, note, bookmark
     content: Mapped[str | None] = mapped_column(Text)
     selected_text: Mapped[str | None] = mapped_column(Text)
 
@@ -251,16 +254,27 @@ class Annotation(Base, TimestampMixin):
     page_number: Mapped[int | None] = mapped_column(Integer)
     position_data: Mapped[dict[str, Any] | None] = mapped_column(
         JSON
-    )  # 存储具体位置信息
+    )  # 存储具体位置信息（坐标、矩形等）
 
     # 样式
     color: Mapped[str | None] = mapped_column(String(7))
+
+    # 额外属性
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否私密
+    tags: Mapped[list[str] | None] = mapped_column(JSON)  # 标签
 
     # 关系
     document: Mapped["Document"] = relationship(
         "Document", back_populates="annotations"
     )
     user: Mapped["User"] = relationship("User")
+
+    # 索引
+    __table_args__ = (
+        Index("idx_annotation_document_user", "document_id", "user_id"),
+        Index("idx_annotation_type", "type"),
+        Index("idx_annotation_page", "document_id", "page_number"),
+    )
 
 
 class Note(Base, TimestampMixin):
@@ -279,6 +293,20 @@ class Note(Base, TimestampMixin):
         String(20), default="markdown"
     )  # markdown, html, plain
 
+    # 笔记类型和来源
+    note_type: Mapped[str] = mapped_column(
+        String(20), default="manual"
+    )  # manual, ai, linked
+    source_type: Mapped[str | None] = mapped_column(
+        String(20)
+    )  # user, ai, research, summary
+    source_id: Mapped[str | None] = mapped_column(String(100))  # 来源ID
+
+    # AI生成相关
+    ai_model: Mapped[str | None] = mapped_column(String(100))  # 使用的AI模型
+    ai_prompt: Mapped[str | None] = mapped_column(Text)  # AI生成时的提示词
+    generation_params: Mapped[dict[str, Any] | None] = mapped_column(JSON)  # 生成参数
+
     # 元数据
     tags: Mapped[list[str] | None] = mapped_column(JSON)
     meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
@@ -287,9 +315,23 @@ class Note(Base, TimestampMixin):
     linked_documents: Mapped[list[int] | None] = mapped_column(JSON)  # 关联的文档ID
     linked_notes: Mapped[list[int] | None] = mapped_column(JSON)  # 关联的笔记ID
 
+    # 版本控制
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    is_draft: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # 关系
     space: Mapped["Space"] = relationship("Space", back_populates="notes")
     user: Mapped["User"] = relationship("User")
+    versions: Mapped[list["NoteVersion"]] = relationship(
+        "NoteVersion", back_populates="note", cascade="all, delete-orphan"
+    )
+
+    # 索引
+    __table_args__ = (
+        Index("idx_note_space_user", "space_id", "user_id"),
+        Index("idx_note_type", "note_type"),
+        Index("idx_note_created", "created_at"),
+    )
 
     def __repr__(self):
         return f"<Note(id={self.id}, title='{self.title}')>"
@@ -354,6 +396,11 @@ class Message(Base, TimestampMixin):
     token_count: Mapped[int | None] = mapped_column(Integer)
     processing_time: Mapped[float | None] = mapped_column(Float)  # 秒
 
+    # 分支管理
+    parent_message_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"))
+    branch_name: Mapped[str | None] = mapped_column(String(100))
+    is_active_branch: Mapped[bool] = mapped_column(Boolean, default=True)
+
     # 元数据（包含引用、来源等）
     meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
     attachments: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
@@ -362,11 +409,16 @@ class Message(Base, TimestampMixin):
     conversation: Mapped["Conversation"] = relationship(
         "Conversation", back_populates="messages"
     )
+    parent_message: Mapped[Optional["Message"]] = relationship(
+        "Message", remote_side=[id], backref="child_messages"
+    )
 
     # 索引
     __table_args__ = (
         Index("idx_message_conversation", "conversation_id"),
         Index("idx_message_created", "created_at"),
+        Index("idx_message_parent", "parent_message_id"),
+        Index("idx_message_branch", "branch_name"),
     )
 
     def __repr__(self):
@@ -427,9 +479,7 @@ class AgentExecution(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    conversation_id: Mapped[int | None] = mapped_column(
-        ForeignKey("conversations.id")
-    )
+    conversation_id: Mapped[int | None] = mapped_column(ForeignKey("conversations.id"))
 
     # 执行信息
     input_data: Mapped[dict[str, Any]] = mapped_column(JSON)
@@ -485,3 +535,104 @@ class UsageLog(Base, TimestampMixin):
         Index("idx_usage_user_date", "user_id", "created_at"),
         Index("idx_usage_action", "action"),
     )
+
+
+class Citation(Base, TimestampMixin):
+    """引用表（BibTeX管理）."""
+
+    __tablename__ = "citations"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"))
+    space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    # BibTeX基本信息
+    citation_type: Mapped[str] = mapped_column(String(50))  # article, book, etc.
+    bibtex_key: Mapped[str] = mapped_column(String(200), unique=True)
+    title: Mapped[str] = mapped_column(Text)
+    authors: Mapped[list[str]] = mapped_column(JSON)  # 作者列表
+    year: Mapped[int | None] = mapped_column(Integer)
+
+    # 期刊/会议信息
+    journal: Mapped[str | None] = mapped_column(String(500))
+    volume: Mapped[str | None] = mapped_column(String(50))
+    number: Mapped[str | None] = mapped_column(String(50))
+    pages: Mapped[str | None] = mapped_column(String(100))
+    publisher: Mapped[str | None] = mapped_column(String(500))
+    booktitle: Mapped[str | None] = mapped_column(String(500))  # 会议论文集
+
+    # 标识符
+    doi: Mapped[str | None] = mapped_column(String(200))
+    isbn: Mapped[str | None] = mapped_column(String(50))
+    url: Mapped[str | None] = mapped_column(String(1000))
+
+    # 内容
+    abstract: Mapped[str | None] = mapped_column(Text)
+    keywords: Mapped[list[str] | None] = mapped_column(JSON)
+
+    # 原始BibTeX
+    bibtex_raw: Mapped[str | None] = mapped_column(Text)
+
+    # 元数据
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
+
+    # 关系
+    document: Mapped[Optional["Document"]] = relationship("Document")
+    space: Mapped["Space"] = relationship("Space")
+    user: Mapped["User"] = relationship("User")
+
+    # 索引
+    __table_args__ = (
+        Index("idx_citation_space", "space_id"),
+        Index("idx_citation_user", "user_id"),
+        Index("idx_citation_type", "citation_type"),
+        Index("idx_citation_year", "year"),
+        Index("idx_citation_bibtex_key", "bibtex_key"),
+    )
+
+    def __repr__(self):
+        return f"<Citation(id={self.id}, key={self.bibtex_key}, title='{self.title[:50] if self.title else ''}...')>"
+
+
+class NoteVersion(Base, TimestampMixin):
+    """笔记版本历史表."""
+
+    __tablename__ = "note_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    note_id: Mapped[int] = mapped_column(ForeignKey("notes.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    # 版本信息
+    version_number: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(500))
+    content: Mapped[str] = mapped_column(Text)
+    content_html: Mapped[str | None] = mapped_column(Text)
+
+    # 变更信息
+    change_summary: Mapped[str | None] = mapped_column(String(500))
+    change_type: Mapped[str] = mapped_column(String(50))  # edit, ai_generate, restore
+
+    # AI生成相关（如果是AI生成的版本）
+    ai_model: Mapped[str | None] = mapped_column(String(100))
+    ai_prompt: Mapped[str | None] = mapped_column(Text)
+
+    # 元数据
+    tags: Mapped[list[str] | None] = mapped_column(JSON)
+    word_count: Mapped[int] = mapped_column(Integer, default=0)
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
+
+    # 关系
+    note: Mapped["Note"] = relationship("Note", back_populates="versions")
+    user: Mapped["User"] = relationship("User")
+
+    # 索引
+    __table_args__ = (
+        Index("idx_note_version_note", "note_id"),
+        Index("idx_note_version_created", "created_at"),
+        UniqueConstraint("note_id", "version_number", name="uq_note_version"),
+    )
+
+    def __repr__(self):
+        return f"<NoteVersion(id={self.id}, note_id={self.note_id}, version={self.version_number})>"
