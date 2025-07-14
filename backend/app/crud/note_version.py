@@ -10,7 +10,7 @@ from app.models.models import NoteVersion
 from app.schemas.note_version import NoteVersionCreate
 
 
-class CRUDNoteVersion(CRUDBase[NoteVersion, NoteVersionCreate, dict]):
+class CRUDNoteVersion(CRUDBase[NoteVersion, NoteVersionCreate, NoteVersionCreate]):
     """Note version CRUD class."""
 
     async def create(
@@ -24,14 +24,14 @@ class CRUDNoteVersion(CRUDBase[NoteVersion, NoteVersionCreate, dict]):
         """Create a new note version with user_id."""
         create_data = obj_in.model_dump()
         create_data["user_id"] = user_id
-        
+
         # Handle metadata field mapping
         if "metadata" in create_data:
             create_data["meta_data"] = create_data.pop("metadata")
-        
+
         # Add any additional kwargs
         create_data.update(kwargs)
-        
+
         db_obj = NoteVersion(**create_data)
         db.add(db_obj)
         await db.commit()
