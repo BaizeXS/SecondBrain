@@ -1,6 +1,6 @@
 """Document CRUD operations."""
 
-from typing import List, Optional
+from typing import Any
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,43 @@ from app.schemas.documents import DocumentCreate, DocumentUpdate
 class CRUDDocument(CRUDBase[Document, DocumentCreate, DocumentUpdate]):
     """CRUD operations for Document model."""
 
+    async def create(
+        self,
+        db: AsyncSession,
+        *,
+        obj_in: DocumentCreate,
+        user_id: int,
+        file_path: str,
+        file_hash: str,
+        original_filename: str | None = None,
+        **kwargs: Any
+    ) -> Document:
+        """Create a new document with required fields."""
+        create_data = obj_in.model_dump()
+
+        # Map schema fields to model fields
+        db_data = {
+            "filename": create_data["filename"],
+            "content_type": create_data["content_type"],
+            "file_size": create_data["size"],  # size -> file_size
+            "space_id": create_data["space_id"],
+            "user_id": user_id,
+            "file_path": file_path,
+            "file_hash": file_hash,
+            "original_filename": original_filename or create_data["filename"],
+            "tags": create_data.get("tags"),
+            "meta_data": create_data.get("metadata")  # metadata -> meta_data
+        }
+
+        # Add any additional kwargs
+        db_data.update(kwargs)
+
+        db_obj = Document(**db_data)
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
+
     async def get_by_space(
         self,
         db: AsyncSession,
@@ -20,21 +57,21 @@ class CRUDDocument(CRUDBase[Document, DocumentCreate, DocumentUpdate]):
         space_id: int,
         skip: int = 0,
         limit: int = 100,
-        status: Optional[str] = None,
-    ) -> List[Document]:
+        status: str | None = None,
+    ) -> list[Document]:
         """Get documents in a specific space."""
         query = select(Document).where(Document.space_id == space_id)
-        
+
         if status:
             query = query.where(Document.processing_status == status)
-        
+
         query = query.order_by(Document.created_at.desc()).offset(skip).limit(limit)
         result = await db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_by_hash(
         self, db: AsyncSession, *, file_hash: str, space_id: int
-    ) -> Optional[Document]:
+    ) -> Document | None:
         """Get document by file hash in a specific space."""
         result = await db.execute(
             select(Document).where(
@@ -54,14 +91,14 @@ class CRUDDocument(CRUDBase[Document, DocumentCreate, DocumentUpdate]):
         query: str,
         skip: int = 0,
         limit: int = 20,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Search documents by title or content."""
         search_filter = or_(
             Document.title.ilike(f"%{query}%"),
             Document.content.ilike(f"%{query}%"),
             Document.filename.ilike(f"%{query}%"),
         )
-        
+
         stmt = (
             select(Document)
             .where(and_(Document.space_id == space_id, search_filter))
@@ -69,9 +106,9 @@ class CRUDDocument(CRUDBase[Document, DocumentCreate, DocumentUpdate]):
             .offset(skip)
             .limit(limit)
         )
-        
+
         result = await db.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def update_processing_status(
         self,
@@ -79,9 +116,9 @@ class CRUDDocument(CRUDBase[Document, DocumentCreate, DocumentUpdate]):
         *,
         document_id: int,
         processing_status: str,
-        extraction_status: Optional[str] = None,
-        embedding_status: Optional[str] = None,
-    ) -> Optional[Document]:
+        extraction_status: str | None = None,
+        embedding_status: str | None = None,
+    ) -> Document | None:
         """Update document processing status."""
         document = await self.get(db, document_id)
         if document:
@@ -96,14 +133,14 @@ class CRUDDocument(CRUDBase[Document, DocumentCreate, DocumentUpdate]):
 
     async def get_by_parent(
         self, db: AsyncSession, *, parent_id: int
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Get child documents (e.g., translations) of a parent document."""
         result = await db.execute(
             select(Document)
             .where(Document.parent_id == parent_id)
             .order_by(Document.created_at)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_user_documents(
         self,
@@ -112,7 +149,7 @@ class CRUDDocument(CRUDBase[Document, DocumentCreate, DocumentUpdate]):
         user_id: int,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Get all documents uploaded by a user."""
         result = await db.execute(
             select(Document)
@@ -121,8 +158,8 @@ class CRUDDocument(CRUDBase[Document, DocumentCreate, DocumentUpdate]):
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 # Create single instance
-document = CRUDDocument(Document)
+crud_document = CRUDDocument(Document)
