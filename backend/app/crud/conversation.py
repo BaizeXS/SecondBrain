@@ -1,6 +1,6 @@
 """Conversation CRUD operations."""
 
-from typing import List, Optional
+from typing import Any
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,28 +13,39 @@ from app.schemas.conversations import ConversationCreate, ConversationUpdate
 class CRUDConversation(CRUDBase[Conversation, ConversationCreate, ConversationUpdate]):
     """CRUD operations for Conversation model."""
 
+    async def create(
+        self, db: AsyncSession, *, obj_in: ConversationCreate, user_id: int, **kwargs: Any
+    ) -> Conversation:
+        """Create a new conversation with user_id."""
+        create_data = obj_in.model_dump()
+        db_obj = Conversation(**create_data, user_id=user_id, **kwargs)
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
+
     async def get_user_conversations(
         self,
         db: AsyncSession,
         *,
         user_id: int,
-        space_id: Optional[int] = None,
-        mode: Optional[str] = None,
+        space_id: int | None = None,
+        mode: str | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[Conversation]:
+    ) -> list[Conversation]:
         """Get conversations for a specific user."""
         query = select(Conversation).where(Conversation.user_id == user_id)
-        
+
         if space_id is not None:
             query = query.where(Conversation.space_id == space_id)
-        
+
         if mode:
             query = query.where(Conversation.mode == mode)
-        
+
         query = query.order_by(Conversation.updated_at.desc()).offset(skip).limit(limit)
         result = await db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_with_messages(
         self,
@@ -42,24 +53,33 @@ class CRUDConversation(CRUDBase[Conversation, ConversationCreate, ConversationUp
         *,
         conversation_id: int,
         message_limit: int = 50,
-    ) -> Optional[Conversation]:
-        """Get conversation with its messages."""
+        branch_name: str | None = None,
+    ) -> tuple[Conversation, list[Message]] | tuple[None, None]:
+        """Get conversation with its messages.
+
+        Returns a tuple of (conversation, messages) or (None, None) if not found.
+        """
         # Get conversation
         conversation = await self.get(db, conversation_id)
         if not conversation:
-            return None
-        
-        # Get messages
-        result = await db.execute(
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.desc())
-            .limit(message_limit)
-        )
-        messages = result.scalars().all()
-        conversation.messages = list(reversed(messages))  # Reverse to get chronological order
-        
-        return conversation
+            return None, None
+
+        # Get messages query
+        query = select(Message).where(Message.conversation_id == conversation_id)
+
+        # Filter by branch if specified
+        if branch_name:
+            query = query.where(Message.branch_name == branch_name)
+        else:
+            # Get only active branch messages by default
+            query = query.where(Message.is_active_branch.is_(True))
+
+        query = query.order_by(Message.created_at.desc()).limit(message_limit)
+
+        result = await db.execute(query)
+        messages = list(reversed(result.scalars().all()))  # Reverse to get chronological order
+
+        return conversation, messages
 
     async def update_stats(
         self,
@@ -68,7 +88,7 @@ class CRUDConversation(CRUDBase[Conversation, ConversationCreate, ConversationUp
         conversation_id: int,
         message_delta: int = 0,
         token_delta: int = 0,
-    ) -> Optional[Conversation]:
+    ) -> Conversation | None:
         """Update conversation statistics."""
         conversation = await self.get(db, conversation_id)
         if conversation:
@@ -86,7 +106,7 @@ class CRUDConversation(CRUDBase[Conversation, ConversationCreate, ConversationUp
         query: str,
         skip: int = 0,
         limit: int = 20,
-    ) -> List[Conversation]:
+    ) -> list[Conversation]:
         """Search conversations by title."""
         result = await db.execute(
             select(Conversation)
@@ -100,60 +120,8 @@ class CRUDConversation(CRUDBase[Conversation, ConversationCreate, ConversationUp
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
-class CRUDMessage(CRUDBase[Message, dict, dict]):
-    """CRUD operations for Message model."""
-
-    async def get_conversation_messages(
-        self,
-        db: AsyncSession,
-        *,
-        conversation_id: int,
-        skip: int = 0,
-        limit: int = 100,
-    ) -> List[Message]:
-        """Get messages for a specific conversation."""
-        result = await db.execute(
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at)
-            .offset(skip)
-            .limit(limit)
-        )
-        return result.scalars().all()
-
-    async def create_message(
-        self,
-        db: AsyncSession,
-        *,
-        conversation_id: int,
-        role: str,
-        content: str,
-        model: Optional[str] = None,
-        provider: Optional[str] = None,
-        token_count: Optional[int] = None,
-        meta_data: Optional[dict] = None,
-        attachments: Optional[list] = None,
-    ) -> Message:
-        """Create a new message."""
-        message = Message(
-            conversation_id=conversation_id,
-            role=role,
-            content=content,
-            model=model,
-            provider=provider,
-            token_count=token_count,
-            meta_data=meta_data,
-            attachments=attachments,
-        )
-        db.add(message)
-        await db.commit()
-        await db.refresh(message)
-        return message
-
-
-# Create single instances
-conversation = CRUDConversation(Conversation)
-message = CRUDMessage(Message)
+# Create single instance
+crud_conversation = CRUDConversation(Conversation)
