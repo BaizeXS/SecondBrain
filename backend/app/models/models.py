@@ -117,7 +117,7 @@ class Space(Base, TimestampMixin):
     allow_collaboration: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # 元数据
-    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     tags: Mapped[list[str] | None] = mapped_column(JSON)
 
     # 统计信息
@@ -205,7 +205,7 @@ class Document(Base, TimestampMixin):
     embedding_status: Mapped[str] = mapped_column(String(20), default="pending")
 
     # 元数据
-    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     tags: Mapped[list[str] | None] = mapped_column(JSON)
 
     # 关系和层级
@@ -309,7 +309,7 @@ class Note(Base, TimestampMixin):
 
     # 元数据
     tags: Mapped[list[str] | None] = mapped_column(JSON)
-    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     # 关系链接
     linked_documents: Mapped[list[int] | None] = mapped_column(JSON)  # 关联的文档ID
@@ -357,7 +357,7 @@ class Conversation(Base, TimestampMixin):
     max_tokens: Mapped[int | None] = mapped_column(Integer)
 
     # 元数据
-    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     # 统计信息
     message_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -402,7 +402,7 @@ class Message(Base, TimestampMixin):
     is_active_branch: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # 元数据（包含引用、来源等）
-    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     attachments: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
 
     # 关系
@@ -581,7 +581,7 @@ class Citation(Base, TimestampMixin):
     bibtex_raw: Mapped[str | None] = mapped_column(Text)
 
     # 元数据
-    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     # 关系
     document: Mapped[Optional["Document"]] = relationship("Document")
@@ -627,7 +627,7 @@ class NoteVersion(Base, TimestampMixin):
     # 元数据
     tags: Mapped[list[str] | None] = mapped_column(JSON)
     word_count: Mapped[int] = mapped_column(Integer, default=0)
-    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, name="metadata")
+    meta_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     # 关系
     note: Mapped["Note"] = relationship("Note", back_populates="versions")

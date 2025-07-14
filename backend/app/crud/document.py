@@ -38,7 +38,7 @@ class CRUDDocument(CRUDBase[Document, DocumentCreate, DocumentUpdate]):
             "file_hash": file_hash,
             "original_filename": original_filename or create_data["filename"],
             "tags": create_data.get("tags"),
-            "meta_data": create_data.get("metadata")  # metadata -> meta_data
+            "meta_data": create_data.get("meta_data")  # direct mapping
         }
 
         # Add any additional kwargs

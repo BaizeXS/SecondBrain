@@ -25,10 +25,6 @@ class CRUDNote(CRUDBase[Note, NoteCreate, NoteUpdate]):
         create_data = obj_in.model_dump()
         create_data["user_id"] = user_id
 
-        # Handle metadata field mapping
-        if "metadata" in create_data:
-            create_data["meta_data"] = create_data.pop("metadata")
-
         # Add any additional kwargs
         create_data.update(kwargs)
 

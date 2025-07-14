@@ -19,11 +19,6 @@ class CRUDMessage(CRUDBase[Message, MessageCreate, MessageUpdate]):
         # Extract data from schema
         create_data = obj_in.model_dump(exclude_unset=True)
 
-        # Handle metadata field name mapping - the field is called 'metadata' in the schema
-        # but needs to be 'meta_data' for the database model
-        if "metadata" in create_data:
-            create_data["meta_data"] = create_data.pop("metadata")
-
         # Create message
         db_obj = Message(**create_data, **kwargs)
         db.add(db_obj)
@@ -160,10 +155,6 @@ class CRUDMessage(CRUDBase[Message, MessageCreate, MessageUpdate]):
         """创建分支消息."""
         # Extract data from schema
         create_data = obj_in.model_dump(exclude_unset=True)
-
-        # Handle metadata field name mapping
-        if "metadata" in create_data:
-            create_data["meta_data"] = create_data.pop("metadata")
 
         # Add branch-specific fields
         create_data.update({
