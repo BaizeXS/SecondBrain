@@ -32,7 +32,7 @@ class ChatCompletionRequest(BaseModel):
 
     model: str = Field(..., description="模型名称")
     messages: list[Message] = Field(..., description="消息列表")
-    mode: str | None = Field("chat", description="对话模式: chat, search, think")
+    mode: str | None = Field("chat", description="对话模式: chat（普通聊天）, search（网络搜索）")
     conversation_id: int | None = Field(None, description="对话ID")
     space_id: int | None = Field(None, description="空间ID")
     document_ids: list[int] | None = Field(None, description="关联的文档ID列表")

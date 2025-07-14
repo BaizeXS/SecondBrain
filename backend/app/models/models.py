@@ -348,7 +348,7 @@ class Conversation(Base, TimestampMixin):
 
     # 对话信息
     title: Mapped[str] = mapped_column(String(500))
-    mode: Mapped[str] = mapped_column(String(20))  # chat, search, think
+    mode: Mapped[str] = mapped_column(String(20))  # chat, search
     model: Mapped[str | None] = mapped_column(String(100))
 
     # 对话设置
@@ -518,7 +518,7 @@ class UsageLog(Base, TimestampMixin):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
     # 使用信息
-    action: Mapped[str] = mapped_column(String(50))  # chat, search, think, upload, etc.
+    action: Mapped[str] = mapped_column(String(50))  # chat, search, upload, etc.
     resource_type: Mapped[str] = mapped_column(
         String(50)
     )  # conversation, document, space
