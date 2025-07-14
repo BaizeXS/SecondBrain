@@ -410,7 +410,13 @@ class Message(Base, TimestampMixin):
         "Conversation", back_populates="messages"
     )
     parent_message: Mapped[Optional["Message"]] = relationship(
-        "Message", remote_side=[id], backref="child_messages"
+        "Message",
+        remote_side=[id],
+        back_populates="child_messages"
+    )
+    child_messages: Mapped[list["Message"]] = relationship(
+        "Message",
+        back_populates="parent_message"
     )
 
     # 索引
