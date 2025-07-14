@@ -212,7 +212,7 @@ class KnowledgeGraphResponse(BaseModel):
 
     nodes: list[KnowledgeGraphNode]
     edges: list[KnowledgeGraphEdge]
-    metadata: dict[str, Any] = {}
+    meta_data: dict[str, Any] = Field({}, description="元数据")
 
 
 class SpaceExport(BaseModel):

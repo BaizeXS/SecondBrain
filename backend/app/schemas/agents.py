@@ -11,16 +11,12 @@ class AgentCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100, description="代理名称")
     description: str = Field(..., description="代理描述")
-    category: str = Field(..., description="代理分类")
-    system_prompt: str = Field(..., description="系统提示词")
-    model: str = Field(..., description="使用的AI模型")
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="温度参数")
-    max_tokens: int | None = Field(None, ge=1, description="最大令牌数")
-    tools: list[dict[str, Any]] | None = Field(None, description="可用工具")
-    capabilities: list[str] | None = Field(None, description="能力列表")
-    metadata: dict[str, Any] | None = Field(None, description="元数据")
-    is_public: bool = Field(default=False, description="是否公开")
-    tags: list[str] | None = Field(None, description="标签")
+    agent_type: str = Field(..., description="代理类型(research/analysis/wiki/custom)")
+    prompt_template: str = Field(..., description="提示词模板")
+    config: dict[str, Any] = Field(default_factory=dict, description="代理配置")
+    capabilities: list[str] = Field(default_factory=list, description="能力列表")
+    tools: list[str] | None = Field(None, description="可用工具")
+    avatar_url: str | None = Field(None, description="头像URL")
 
 
 class AgentUpdate(BaseModel):
@@ -30,17 +26,14 @@ class AgentUpdate(BaseModel):
         None, min_length=1, max_length=100, description="代理名称"
     )
     description: str | None = Field(None, description="代理描述")
-    category: str | None = Field(None, description="代理分类")
-    system_prompt: str | None = Field(None, description="系统提示词")
-    model: str | None = Field(None, description="使用的AI模型")
-    temperature: float | None = Field(None, ge=0.0, le=2.0, description="温度参数")
-    max_tokens: int | None = Field(None, ge=1, description="最大令牌数")
-    tools: list[dict[str, Any]] | None = Field(None, description="可用工具")
+    agent_type: str | None = Field(None, description="代理类型")
+    prompt_template: str | None = Field(None, description="提示词模板")
+    config: dict[str, Any] | None = Field(None, description="代理配置")
     capabilities: list[str] | None = Field(None, description="能力列表")
-    metadata: dict[str, Any] | None = Field(None, description="元数据")
-    is_public: bool | None = Field(None, description="是否公开")
+    tools: list[str] | None = Field(None, description="可用工具")
+    avatar_url: str | None = Field(None, description="头像URL")
     is_active: bool | None = Field(None, description="是否启用")
-    tags: list[str] | None = Field(None, description="标签")
+    is_public: bool | None = Field(None, description="是否公开")
 
 
 class AgentResponse(BaseModel):
@@ -51,18 +44,17 @@ class AgentResponse(BaseModel):
     id: int
     name: str
     description: str
-    category: str
-    model: str
-    temperature: float
-    max_tokens: int | None = None
-    capabilities: list[str] | None = None
+    agent_type: str
+    avatar_url: str | None = None
+    capabilities: list[str]
+    tools: list[str] | None = None
     is_public: bool
     is_active: bool
     is_verified: bool
     usage_count: int = 0
     rating: float | None = None
     tags: list[str] | None = None
-    created_by: int
+    user_id: int | None = None
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -70,9 +62,8 @@ class AgentResponse(BaseModel):
 class AgentDetail(AgentResponse):
     """代理详细信息模式."""
 
-    system_prompt: str
-    tools: list[dict[str, Any]] | None = None
-    metadata: dict[str, Any] | None = None
+    prompt_template: str
+    config: dict[str, Any]
     # 统计信息
     total_executions: int = 0
     success_rate: float = 0.0
@@ -93,12 +84,12 @@ class AgentListResponse(BaseModel):
 class AgentExecuteRequest(BaseModel):
     """代理执行请求模式."""
 
-    agent_id: int = Field(..., description="代理ID")
-    input_data: str | dict[str, Any] = Field(..., description="输入数据")
+    prompt: str = Field(..., description="用户输入提示")
+    mode: str | None = Field(None, description="执行模式")
     context: dict[str, Any] | None = Field(None, description="上下文")
     stream: bool = Field(default=False, description="是否流式响应")
-    max_iterations: int = Field(default=10, ge=1, le=50, description="最大迭代次数")
-    timeout: int = Field(default=300, ge=10, le=3600, description="超时时间(秒)")
+    space_id: int | None = Field(None, description="关联的Space ID")
+    parameters: dict[str, Any] | None = Field(None, description="额外参数")
 
 
 class AgentExecuteResponse(BaseModel):
@@ -299,3 +290,34 @@ class AgentImport(BaseModel):
     agent_data: dict[str, Any] = Field(..., description="代理数据")
     overwrite_existing: bool = Field(default=False, description="覆盖现有")
     validate_tools: bool = Field(default=True, description="验证工具")
+
+
+class DeepResearchRequest(BaseModel):
+    """Deep Research请求模式."""
+
+    query: str = Field(..., min_length=1, max_length=500, description="研究查询")
+    mode: str = Field(default="general", description="研究模式: general/academic")
+    space_id: int | None = Field(None, description="保存到指定Space")
+    stream: bool = Field(default=False, description="是否流式响应")
+
+
+class DeepResearchResponse(BaseModel):
+    """Deep Research响应模式."""
+
+    research_id: str
+    space_id: int | None
+    query: str
+    mode: str
+    status: str
+    result: dict[str, Any] | None = None
+    error: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class DeepResearchProgress(BaseModel):
+    """Deep Research进度更新."""
+
+    type: str = Field(..., description="事件类型")
+    content: str | None = Field(None, description="内容")
+    progress: float | None = Field(None, ge=0, le=100, description="进度百分比")
+    message: str | None = Field(None, description="消息")

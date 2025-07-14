@@ -1,7 +1,7 @@
 """User schemas."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -11,7 +11,7 @@ class UserBase(BaseModel):
 
     username: str = Field(..., min_length=3, max_length=50, description="用户名")
     email: EmailStr = Field(..., description="邮箱地址")
-    full_name: Optional[str] = Field(None, max_length=100, description="真实姓名")
+    full_name: str | None = Field(None, max_length=100, description="真实姓名")
 
 
 class UserCreate(UserBase):
@@ -23,9 +23,9 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     """更新用户模式."""
 
-    full_name: Optional[str] = Field(None, max_length=100, description="真实姓名")
-    avatar_url: Optional[str] = Field(None, description="头像URL")
-    preferences: Optional[Dict[str, Any]] = Field(None, description="用户偏好设置")
+    full_name: str | None = Field(None, max_length=100, description="真实姓名")
+    avatar_url: str | None = Field(None, description="头像URL")
+    preferences: dict[str, Any] | None = Field(None, description="用户偏好设置")
 
 
 class UserResponse(BaseModel):
@@ -36,15 +36,17 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: str
-    full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    full_name: str | None = None
+    avatar_url: str | None = None
     is_active: bool
     is_premium: bool
     is_verified: bool
     daily_usage: int
-    preferences: Optional[Dict[str, Any]] = None
+    last_reset_date: datetime | None = None
+    last_login: datetime | None = None
+    preferences: dict[str, Any] | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 
 class UserProfile(BaseModel):
@@ -55,21 +57,21 @@ class UserProfile(BaseModel):
     id: int
     username: str
     email: str
-    full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    full_name: str | None = None
+    avatar_url: str | None = None
     is_active: bool
     is_premium: bool
     is_verified: bool
     daily_usage: int
-    last_reset_date: Optional[datetime] = None
-    preferences: Optional[Dict[str, Any]] = None
+    last_reset_date: datetime | None = None
+    preferences: dict[str, Any] | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     # 统计信息
-    total_spaces: Optional[int] = 0
-    total_documents: Optional[int] = 0
-    total_conversations: Optional[int] = 0
+    total_spaces: int | None = 0
+    total_documents: int | None = 0
+    total_conversations: int | None = 0
 
 
 class APIKeyCreate(BaseModel):
@@ -90,15 +92,15 @@ class APIKeyResponse(BaseModel):
     key_name: str
     is_active: bool
     usage_count: int
-    last_used: Optional[datetime] = None
+    last_used: datetime | None = None
     created_at: datetime
 
 
 class APIKeyUpdate(BaseModel):
     """更新API密钥模式."""
 
-    key_name: Optional[str] = Field(None, description="密钥名称")
-    is_active: Optional[bool] = Field(None, description="是否启用")
+    key_name: str | None = Field(None, description="密钥名称")
+    is_active: bool | None = Field(None, description="是否启用")
 
 
 class UserStats(BaseModel):
@@ -121,7 +123,7 @@ class UserPreferences(BaseModel):
 
     theme: str = Field(default="light", description="主题")
     language: str = Field(default="zh-cn", description="语言")
-    default_model: Optional[str] = Field(None, description="默认AI模型")
+    default_model: str | None = Field(None, description="默认AI模型")
     auto_save: bool = Field(default=True, description="自动保存")
     notification_email: bool = Field(default=True, description="邮件通知")
     notification_browser: bool = Field(default=True, description="浏览器通知")
@@ -130,7 +132,7 @@ class UserPreferences(BaseModel):
     default_temperature: float = Field(
         default=0.7, ge=0.0, le=2.0, description="默认温度"
     )
-    default_max_tokens: Optional[int] = Field(
+    default_max_tokens: int | None = Field(
         None, ge=1, le=4096, description="默认最大令牌数"
     )
     stream_response: bool = Field(default=True, description="流式响应")
@@ -148,11 +150,11 @@ class UsageLogResponse(BaseModel):
     id: int
     action: str
     resource_type: str
-    resource_id: Optional[int] = None
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    token_count: Optional[int] = None
-    cost: Optional[float] = None
+    resource_id: int | None = None
+    model: str | None = None
+    provider: str | None = None
+    token_count: int | None = None
+    cost: float | None = None
     created_at: datetime
 
 
@@ -163,4 +165,4 @@ class UserUsageStats(BaseModel):
     this_week: UserStats
     this_month: UserStats
     all_time: UserStats
-    recent_logs: List[UsageLogResponse] = []
+    recent_logs: list[UsageLogResponse] = []

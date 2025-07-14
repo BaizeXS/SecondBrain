@@ -1,6 +1,5 @@
 """Authentication schemas."""
 
-from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -18,7 +17,7 @@ class UserRegister(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="用户名")
     email: EmailStr = Field(..., description="邮箱地址")
     password: str = Field(..., min_length=6, description="密码")
-    full_name: Optional[str] = Field(None, max_length=100, description="真实姓名")
+    full_name: str | None = Field(None, max_length=100, description="真实姓名")
 
 
 class Token(BaseModel):
@@ -33,7 +32,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """令牌数据模式."""
 
-    user_id: Optional[int] = None
+    user_id: int | None = None
 
 
 class RefreshTokenRequest(BaseModel):

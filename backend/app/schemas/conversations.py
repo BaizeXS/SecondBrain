@@ -1,11 +1,11 @@
 """Conversation and message schemas."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from enum import Enum
 
 class ChatMode(str, Enum):
     """对话模式枚举."""
@@ -18,8 +18,28 @@ class ChatMode(str, Enum):
 class MessageCreate(BaseModel):
     """创建消息模式."""
 
+    conversation_id: int = Field(..., description="对话ID")
+    role: str = Field(..., description="角色: user/assistant/system")
     content: str = Field(..., description="消息内容")
-    attachments: Optional[List[Dict[str, Any]]] = Field(None, description="附件")
+    model: str | None = Field(None, description="AI模型名称")
+    provider: str | None = Field(None, description="AI提供商")
+    meta_data: dict[str, Any] | None = Field(None, description="元数据")
+    attachments: list[dict[str, Any]] | None = Field(None, description="附件")
+
+
+class MessageCreateSimple(BaseModel):
+    """简化的创建消息模式 - 用于API端点."""
+
+    content: str = Field(..., description="消息内容")
+    attachments: list[dict[str, Any]] | None = Field(None, description="附件")
+
+
+class MessageUpdate(BaseModel):
+    """更新消息模式."""
+
+    content: str | None = Field(None, description="消息内容")
+    attachments: list[dict[str, Any]] | None = Field(None, description="附件")
+    meta_data: dict[str, Any] | None = Field(None, description="元数据")
 
 
 class MessageResponse(BaseModel):
@@ -30,12 +50,12 @@ class MessageResponse(BaseModel):
     id: int
     role: str
     content: str
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    token_count: Optional[int] = None
-    processing_time: Optional[float] = None
-    meta_data: Optional[Dict[str, Any]] = None
-    attachments: Optional[List[Dict[str, Any]]] = None
+    model: str | None = None
+    provider: str | None = None
+    token_count: int | None = None
+    processing_time: float | None = None
+    meta_data: dict[str, Any] | None = Field(None, description="元数据")
+    attachments: list[dict[str, Any]] | None = None
     created_at: datetime
 
 
@@ -44,22 +64,22 @@ class ConversationCreate(BaseModel):
 
     title: str = Field(..., max_length=500, description="对话标题")
     mode: ChatMode = Field(default=ChatMode.CHAT, description="对话模式")
-    space_id: Optional[int] = Field(None, description="关联的知识空间ID")
-    system_prompt: Optional[str] = Field(None, description="系统提示词")
-    model: Optional[str] = Field(None, description="指定AI模型")
-    temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0, description="温度参数")
-    max_tokens: Optional[int] = Field(None, ge=1, description="最大令牌数")
-    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+    space_id: int | None = Field(None, description="关联的知识空间ID")
+    system_prompt: str | None = Field(None, description="系统提示词")
+    model: str | None = Field(None, description="指定AI模型")
+    temperature: float | None = Field(0.7, ge=0.0, le=2.0, description="温度参数")
+    max_tokens: int | None = Field(None, ge=1, description="最大令牌数")
+    meta_data: dict[str, Any] | None = Field(None, description="元数据")
 
 
 class ConversationUpdate(BaseModel):
     """更新对话模式."""
 
-    title: Optional[str] = Field(None, max_length=500, description="对话标题")
-    system_prompt: Optional[str] = Field(None, description="系统提示词")
-    temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="温度参数")
-    max_tokens: Optional[int] = Field(None, ge=1, description="最大令牌数")
-    meta_data: Optional[Dict[str, Any]] = Field(None, description="元数据")
+    title: str | None = Field(None, max_length=500, description="对话标题")
+    system_prompt: str | None = Field(None, description="系统提示词")
+    temperature: float | None = Field(None, ge=0.0, le=2.0, description="温度参数")
+    max_tokens: int | None = Field(None, ge=1, description="最大令牌数")
+    meta_data: dict[str, Any] | None = Field(None, description="元数据")
 
 
 class ConversationResponse(BaseModel):
@@ -70,22 +90,22 @@ class ConversationResponse(BaseModel):
     id: int
     title: str
     mode: str
-    model: Optional[str] = None
-    space_id: Optional[int] = None
-    system_prompt: Optional[str] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    meta_data: Optional[Dict[str, Any]] = None
+    model: str | None = None
+    space_id: int | None = None
+    system_prompt: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    meta_data: dict[str, Any] | None = Field(None, description="元数据")
     message_count: int
     total_tokens: int
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 
 class ConversationDetail(ConversationResponse):
     """对话详细信息模式."""
 
-    messages: List[MessageResponse] = []
+    messages: list[MessageResponse] = []
 
 
 class ChatRequest(BaseModel):
@@ -93,13 +113,13 @@ class ChatRequest(BaseModel):
 
     message: str = Field(..., description="用户消息")
     stream: bool = Field(default=True, description="是否流式响应")
-    model: Optional[str] = Field(None, description="指定AI模型")
-    provider: Optional[str] = Field(None, description="指定AI提供商")
-    temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="温度参数")
-    max_tokens: Optional[int] = Field(None, ge=1, description="最大令牌数")
-    context_files: Optional[List[int]] = Field(None, description="上下文文档ID列表")
-    search_scope: Optional[str] = Field("web", description="搜索范围")
-    attachments: Optional[List[Dict[str, Any]]] = Field(None, description="附件")
+    model: str | None = Field(None, description="指定AI模型")
+    provider: str | None = Field(None, description="指定AI提供商")
+    temperature: float | None = Field(None, ge=0.0, le=2.0, description="温度参数")
+    max_tokens: int | None = Field(None, ge=1, description="最大令牌数")
+    context_files: list[int] | None = Field(None, description="上下文文档ID列表")
+    search_scope: str | None = Field("web", description="搜索范围")
+    attachments: list[dict[str, Any]] | None = Field(None, description="附件")
 
 
 class ChatResponse(BaseModel):
@@ -109,10 +129,10 @@ class ChatResponse(BaseModel):
     content: str
     model: str
     provider: str
-    token_count: Optional[int] = None
+    token_count: int | None = None
     processing_time: float
-    sources: Optional[List[Dict[str, Any]]] = None
-    meta_data: Optional[Dict[str, Any]] = None
+    sources: list[dict[str, Any]] | None = None
+    meta_data: dict[str, Any] | None = Field(None, description="元数据")
 
 
 class StreamChatChunk(BaseModel):
@@ -120,8 +140,8 @@ class StreamChatChunk(BaseModel):
 
     content: str
     finished: bool = False
-    message_id: Optional[int] = None
-    meta_data: Optional[Dict[str, Any]] = None
+    message_id: int | None = None
+    meta_data: dict[str, Any] | None = Field(None, description="元数据")
 
 
 class SearchRequest(BaseModel):
@@ -139,30 +159,30 @@ class SearchResult(BaseModel):
     title: str
     url: str
     snippet: str
-    content: Optional[str] = None
-    score: Optional[float] = None
+    content: str | None = None
+    score: float | None = None
     source: str
-    published_date: Optional[datetime] = None
+    published_date: datetime | None = None
 
 
 class SearchResponse(BaseModel):
     """搜索响应模式."""
 
     query: str
-    results: List[SearchResult]
-    summary: Optional[str] = None
+    results: list[SearchResult]
+    summary: str | None = None
     total_results: int
     search_time: float
-    sources: List[str]
+    sources: list[str]
 
 
 class ThinkRequest(BaseModel):
     """推理请求模式."""
 
     question: str = Field(..., description="需要深度思考的问题")
-    context: Optional[str] = Field(None, description="上下文信息")
-    model: Optional[str] = Field(None, description="指定推理模型")
-    max_tokens: Optional[int] = Field(None, ge=1, description="最大令牌数")
+    context: str | None = Field(None, description="上下文信息")
+    model: str | None = Field(None, description="指定推理模型")
+    max_tokens: int | None = Field(None, ge=1, description="最大令牌数")
     show_reasoning: bool = Field(default=True, description="显示推理过程")
 
 
@@ -171,18 +191,18 @@ class ThinkResponse(BaseModel):
 
     question: str
     answer: str
-    reasoning: Optional[str] = None
+    reasoning: str | None = None
     model: str
     provider: str
-    token_count: Optional[int] = None
+    token_count: int | None = None
     processing_time: float
-    confidence: Optional[float] = None
+    confidence: float | None = None
 
 
 class ConversationListResponse(BaseModel):
     """对话列表响应模式."""
 
-    conversations: List[ConversationResponse]
+    conversations: list[ConversationResponse]
     total: int
     page: int
     page_size: int
@@ -197,18 +217,18 @@ class ConversationWithMessages(BaseModel):
     id: int
     title: str
     mode: ChatMode
-    model: Optional[str] = None
-    space_id: Optional[int] = None
-    prompt_template: Optional[str] = None
+    model: str | None = None
+    space_id: int | None = None
+    prompt_template: str | None = None
     is_pinned: bool = False
     is_archived: bool = False
     message_count: int = 0
     token_count: int = 0
-    tags: Optional[List[str]] = None
-    meta_data: Optional[Dict[str, Any]] = None
+    tags: list[str] | None = None
+    meta_data: dict[str, Any] | None = Field(None, description="元数据")
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    messages: List[MessageResponse] = []
+    updated_at: datetime | None = None
+    messages: list[MessageResponse] = []
 
 
 class ConversationStats(BaseModel):
@@ -218,9 +238,9 @@ class ConversationStats(BaseModel):
     total_messages: int
     total_tokens: int
     avg_messages_per_conversation: float
-    most_used_model: Optional[str] = None
-    mode_distribution: Dict[str, int] = {}
-    daily_usage: List[Dict[str, Any]] = []
+    most_used_model: str | None = None
+    mode_distribution: dict[str, int] = {}
+    daily_usage: list[dict[str, Any]] = []
 
 
 class ConversationExport(BaseModel):
@@ -234,6 +254,6 @@ class ConversationExport(BaseModel):
 class ConversationImport(BaseModel):
     """对话导入模式."""
 
-    data: Dict[str, Any] = Field(..., description="导入数据")
+    data: dict[str, Any] = Field(..., description="导入数据")
     merge_mode: str = Field(default="append", description="合并模式")
     validate_format: bool = Field(default=True, description="验证格式")
