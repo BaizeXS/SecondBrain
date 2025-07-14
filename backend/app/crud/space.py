@@ -1,12 +1,11 @@
 """Space CRUD operations."""
 
-from typing import List, Optional
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
-from app.models.models import Space, SpaceCollaboration, User
+from app.models.models import Space, SpaceCollaboration
 from app.schemas.spaces import SpaceCreate, SpaceUpdate
 
 
@@ -21,22 +20,22 @@ class CRUDSpace(CRUDBase[Space, SpaceCreate, SpaceUpdate]):
         skip: int = 0,
         limit: int = 100,
         include_public: bool = False,
-    ) -> List[Space]:
+    ) -> list[Space]:
         """Get spaces for a specific user."""
         query = select(Space).where(Space.user_id == user_id)
-        
+
         if include_public:
             query = select(Space).where(
-                (Space.user_id == user_id) | (Space.is_public == True)
+                (Space.user_id == user_id) | (Space.is_public.is_(True))
             )
-        
+
         query = query.order_by(Space.created_at.desc()).offset(skip).limit(limit)
         result = await db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_by_name(
         self, db: AsyncSession, *, name: str, user_id: int
-    ) -> Optional[Space]:
+    ) -> Space | None:
         """Get space by name for a specific user."""
         result = await db.execute(
             select(Space).where(
@@ -53,7 +52,7 @@ class CRUDSpace(CRUDBase[Space, SpaceCreate, SpaceUpdate]):
         document_delta: int = 0,
         note_delta: int = 0,
         size_delta: int = 0,
-    ) -> Optional[Space]:
+    ) -> Space | None:
         """Update space statistics."""
         space = await self.get(db, space_id)
         if space:
@@ -66,14 +65,14 @@ class CRUDSpace(CRUDBase[Space, SpaceCreate, SpaceUpdate]):
 
     async def get_collaborations(
         self, db: AsyncSession, *, space_id: int
-    ) -> List[SpaceCollaboration]:
+    ) -> list[SpaceCollaboration]:
         """Get all collaborations for a space."""
         result = await db.execute(
             select(SpaceCollaboration)
             .where(SpaceCollaboration.space_id == space_id)
             .order_by(SpaceCollaboration.created_at)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def add_collaborator(
         self,
@@ -86,8 +85,16 @@ class CRUDSpace(CRUDBase[Space, SpaceCreate, SpaceUpdate]):
         can_edit: bool = False,
         can_delete: bool = False,
         can_invite: bool = False,
-    ) -> SpaceCollaboration:
-        """Add a collaborator to a space."""
+    ) -> SpaceCollaboration | None:
+        """Add a collaborator to a space.
+
+        Returns None if the user is already a collaborator.
+        """
+        # Check if user is already a collaborator
+        existing = await self.get_user_access(db, space_id=space_id, user_id=user_id)
+        if existing:
+            return None
+
         collaboration = SpaceCollaboration(
             space_id=space_id,
             user_id=user_id,
@@ -104,7 +111,7 @@ class CRUDSpace(CRUDBase[Space, SpaceCreate, SpaceUpdate]):
 
     async def get_user_access(
         self, db: AsyncSession, *, space_id: int, user_id: int
-    ) -> Optional[SpaceCollaboration]:
+    ) -> SpaceCollaboration | None:
         """Check if user has access to a space."""
         result = await db.execute(
             select(SpaceCollaboration).where(
@@ -119,4 +126,4 @@ class CRUDSpace(CRUDBase[Space, SpaceCreate, SpaceUpdate]):
 
 
 # Create single instance
-space = CRUDSpace(Space)
+crud_space = CRUDSpace(Space)
