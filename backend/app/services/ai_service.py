@@ -3,7 +3,6 @@
 import base64
 import logging
 from collections.abc import AsyncGenerator
-from enum import Enum
 from pathlib import Path
 from typing import Any, NotRequired, TypedDict
 
@@ -12,6 +11,7 @@ from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.models.models import User
+from app.schemas.conversations import ChatMode
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +37,6 @@ class ChatMessage(TypedDict, total=False):
 
 # Type alias for messages
 MessagesType = list[dict[str, Any]]
-
-
-class ChatMode(str, Enum):
-    """对话模式枚举."""
-
-    CHAT = "chat"
-    SEARCH = "search"
 
 
 class OllamaProvider:
