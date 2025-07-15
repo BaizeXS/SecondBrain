@@ -1,4 +1,4 @@
-"""AI service using OpenRouter API aggregation platform."""
+"""AI service with OpenRouter and Ollama support."""
 
 import base64
 import logging
