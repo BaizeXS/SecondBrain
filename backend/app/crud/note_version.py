@@ -110,7 +110,7 @@ class CRUDNoteVersion(CRUDBase[NoteVersion, NoteVersionCreate, NoteVersionCreate
         ai_prompt: str | None = None,
         tags: list[str] | None = None,
         word_count: int = 0,
-        metadata: dict | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> NoteVersion:
         """创建新版本."""
         version_number = await self.get_next_version_number(db, note_id=note_id)

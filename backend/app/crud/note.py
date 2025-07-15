@@ -285,7 +285,7 @@ class CRUDNote(CRUDBase[Note, NoteCreate, NoteUpdate]):
         notes = result.scalars().all()
 
         # 统计标签
-        tag_counts = {}
+        tag_counts: dict[str, int] = {}
         for note in notes:
             if note.tags:
                 for tag in note.tags:

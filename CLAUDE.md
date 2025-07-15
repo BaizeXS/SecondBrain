@@ -4,117 +4,227 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Second Brain is an AI-powered knowledge management system that helps users efficiently collect, organize, and deeply apply various learning materials. The project consists of a FastAPI backend with PostgreSQL, Redis, MinIO, and Qdrant for data management and AI capabilities.
+Second Brain is an AI-powered knowledge management system with three core modules:
+- **AI Chat**: Multi-model conversations with Chat and Search modes
+- **Intelligent Agents**: Deep Research automation using Perplexity API
+- **Knowledge Base (Space)**: Document management with AI-enhanced interactions
 
-## Architecture Overview
+### Important Design Decision: Conversation-Space Relationship
 
-The backend follows a three-layer architecture:
+**Key Concept**: Not all conversations are associated with a Space.
 
-1. **API Layer** (`app/api/v1/endpoints/`) - HTTP request handling, validation, authentication
-2. **Service Layer** (`app/services/`) - Business logic, cross-entity operations, third-party integrations
-3. **CRUD Layer** (`app/crud/`) - Database operations, query building, data access
+- **AI Chat Page Conversations**: These are standalone conversations (space_id = None), similar to a search engine tool for quick information lookup
+- **Space-Associated Conversations**: Only conversations created through:
+  - Deep Research agent (automatically creates a Space)
+  - Within a specific Space by the user
+  
+This design allows AI Chat to function as a general-purpose tool while maintaining Space as a focused knowledge management area.
 
-Key components:
-- **Authentication**: JWT-based with user role management
-- **Document Management**: Upload, storage (MinIO), content extraction, vector search (Qdrant)
-- **AI Services**: Multi-provider support (OpenAI, Anthropic, Google, DeepSeek) with intelligent model selection
-- **Space Management**: Knowledge spaces with collaboration and permissions
-- **Conversation System**: AI chat with history management
+### Agent System Design
+
+**Key Concept**: The Agent model supports both simple Prompt-based agents and future LangGraph-based agents.
+
+**Agent Types**:
+1. **Official Agents** (user_id = None):
+   - Prompt Agents: Pre-defined prompts for specific tasks
+   - LangGraph Agents (future): Complex multi-step agents with tool usage
+   
+2. **User Custom Agents** (user_id = specific user):
+   - Users can create their own prompt-based agents
+   
+**Technical Implementation**:
+- `agent_type` field distinguishes between different agent types (research, analysis, custom, etc.)
+- `config` JSON field stores flexible configuration (simple for Prompt agents, complex for LangGraph agents)
+- `tools` field will store tool chains for LangGraph agents
+- `prompt_template` field for prompt-based agents
+- `capabilities` field indicates what the agent can do
+
+This design ensures backward compatibility while allowing future expansion to LangGraph agents.
 
 ## Development Commands
 
-### Backend Development
+### Environment Setup
+```bash
+# First time setup
+cd backend
+cp .env.example .env  # Then add at least one AI API key
+./scripts/start.sh    # Creates directories, starts services, runs migrations
+
+# Manual setup if script fails
+docker-compose up -d
+docker-compose exec backend alembic upgrade head
+```
+
+### Common Development Tasks
+
+**IMPORTANT**: This project uses `uv` for package management, not pip!
 
 ```bash
-# Navigate to backend directory
-cd backend
-
-# Install dependencies (using uv)
-uv sync
-
-# Run database migrations
-alembic upgrade head
-
-# Start development server
-uvicorn app.main:app --reload --port 8000
-
-# Start all services with Docker Compose
+# Start all services
 docker-compose up -d
 
-# Run tests
-pytest
+# View logs
+docker-compose logs -f backend
 
-# Run tests with coverage
-pytest --cov=app --cov-report=html --cov-report=term-missing
+# Run database migrations
+docker-compose exec backend alembic upgrade head
 
-# Linting and formatting
-ruff check .
-ruff format .
-black .
-
-# Type checking
-mypy app/
-```
-
-### Database Commands
-
-```bash
 # Create new migration
-alembic revision --autogenerate -m "description"
+docker-compose exec backend alembic revision --autogenerate -m "description"
 
-# Apply migrations
-alembic upgrade head
+# Restart backend (after code changes)
+docker-compose restart backend
 
-# Rollback one migration
-alembic downgrade -1
+# Install dependencies (using uv)
+uv pip install -r requirements.txt  # From requirements file
+uv pip install package_name         # Install single package
+
+# Run tests (using uv)
+docker-compose exec backend uv run pytest
+docker-compose exec backend uv run pytest -v  # Verbose output
+docker-compose exec backend uv run pytest tests/test_file.py::test_function
+
+# Code formatting and linting (using uv)
+docker-compose exec backend uv run black app/
+docker-compose exec backend uv run ruff check app/ --fix
+
+# Type checking (using uv)
+docker-compose exec backend uv run mypy app/
+
+# Access services
+# - Backend API: http://localhost:8000
+# - API Docs: http://localhost:8000/api/v1/docs
+# - MinIO Console: http://localhost:9001 (minioadmin/minioadmin)
+# - PostgreSQL: localhost:5432 (secondbrain/secondbrain123)
+# - Redis: localhost:6379
+# - Qdrant: localhost:6333
 ```
 
-### Testing
+## Architecture Patterns
 
+### API Layer Structure
+```
+app/api/v1/
+├── api.py              # Main router aggregator
+└── endpoints/
+    ├── auth.py         # Authentication (login, register, tokens)
+    ├── chat.py         # AI conversations (streaming, multi-model)
+    ├── agents.py       # AI agents (Deep Research)
+    ├── spaces.py       # Knowledge spaces
+    ├── documents.py    # Document upload/management
+    └── ...
+```
+
+### Service Layer Pattern
+All business logic is in `app/services/`:
+- AI providers are abstracted with a common interface in `ai_service.py`
+- Each service handles a specific domain (documents, conversations, etc.)
+- Services use dependency injection via FastAPI
+
+### Database Access Pattern
+- Models defined in `app/models/models.py` using SQLAlchemy ORM
+- CRUD operations in `app/crud/` provide database access layer
+- Schemas in `app/schemas/` define API request/response models
+- All database operations are async using asyncpg
+
+### AI Provider Integration
+```python
+# Example: Adding a new AI provider
+class NewProvider(AIProvider):
+    async def chat(self, messages, model, **kwargs) -> str:
+        # Implement sync chat
+    
+    async def stream_chat(self, messages, model, **kwargs) -> AsyncGenerator[str, None]:
+        # Implement streaming
+    
+    async def get_embedding(self, text, model=None) -> List[float]:
+        # Implement embeddings
+```
+
+### Vector Search Pattern
+- Documents are chunked and embedded on upload
+- Embeddings stored in Qdrant with metadata
+- Search combines vector similarity with filters
+- Used for Space-specific AI conversations
+
+### Authentication Flow
+- JWT tokens with access/refresh pattern
+- Tokens stored in Redis for validation
+- User context available via `get_current_user` dependency
+- Rate limiting per user/endpoint
+
+## Key Implementation Details
+
+### Streaming Responses
+Chat endpoints support Server-Sent Events (SSE) for real-time streaming:
+```python
+async def stream_response():
+    async for chunk in ai_service.stream_chat(...):
+        yield f"data: {json.dumps({'content': chunk})}\n\n"
+```
+
+### File Processing Pipeline
+1. Upload to MinIO with unique ID
+2. Extract text based on file type (PDF, DOCX, etc.)
+3. Chunk text with overlap for context
+4. Generate embeddings via AI provider
+5. Store in Qdrant with document metadata
+
+### Deep Research Agent
+- Accepts topic and mode (general/academic)
+- Calls Perplexity Deep Research API
+- Auto-creates Space with research results
+- Saves sources as documents in Space
+
+### Message Branching
+Conversations support branching for alternative responses:
+- `parent_message_id` links messages
+- `branch_id` groups alternative responses
+- UI can show/switch between branches
+
+## Environment Variables
+
+Required in `.env`:
 ```bash
-# Run all tests
-pytest
+# At least one AI provider key required
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_API_KEY=...
+DEEPSEEK_API_KEY=...
 
-# Run specific test file
-pytest tests/test_crud_layer.py
+# Required for search/research features
+PERPLEXITY_API_KEY=pplx-...
 
-# Run with verbose output
-pytest -v
-
-# Run specific test
-pytest tests/test_crud_layer.py::test_function_name
+# Database (auto-configured in docker-compose)
+DATABASE_URL=postgresql+asyncpg://...
+SECRET_KEY=your-secret-key-here
 ```
 
-## Service Configuration
+## Common Patterns
 
-The system uses environment variables for configuration. Key variables:
+### Adding New Endpoints
+1. Create schema in `app/schemas/`
+2. Add CRUD operations in `app/crud/` if needed
+3. Implement business logic in `app/services/`
+4. Create endpoint in `app/api/v1/endpoints/`
+5. Include router in `app/api/v1/api.py`
 
-- `DATABASE_URL`: PostgreSQL connection string
-- `REDIS_URL`: Redis connection string
-- `MINIO_ENDPOINT`: MinIO server endpoint
-- `QDRANT_HOST`: Qdrant server host
-- `SECRET_KEY`: JWT secret key
-- AI API keys: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `DEEPSEEK_API_KEY`
+### Error Handling
+- Use FastAPI's HTTPException for API errors
+- Services raise custom exceptions
+- Global exception handlers in `main.py`
+- Async context managers for resource cleanup
 
-## Development Workflow
+### Testing Approach
+- Use pytest with async support
+- Test database with transactions rollback
+- Mock external APIs (AI providers, storage)
+- Integration tests for full workflows
 
-1. **Database Setup**: The project uses PostgreSQL with async SQLAlchemy. Always run migrations after model changes.
+## Performance Considerations
 
-2. **Service Layer Pattern**: When adding new features, follow the three-layer architecture:
-   - Define schemas in `app/schemas/`
-   - Implement CRUD operations in `app/crud/`
-   - Add business logic in `app/services/`
-   - Create API endpoints in `app/api/v1/endpoints/`
-
-3. **AI Service Integration**: The system intelligently selects services based on available API keys. Services have both full and simplified versions for development without API keys.
-
-4. **Testing**: Write tests for all layers. Use pytest fixtures for database sessions and mock external services.
-
-## Important Notes
-
-- The project uses Python 3.12+ with async/await patterns throughout
-- All database operations use async SQLAlchemy
-- File uploads are stored in MinIO, with metadata in PostgreSQL
-- Vector embeddings are stored in Qdrant for semantic search
-- The system supports streaming responses for AI chat
-- Redis is used for caching and rate limiting
+- Database queries use eager loading to avoid N+1
+- Redis caches frequent queries (user data, configs)
+- Streaming responses for large AI outputs
+- Background tasks for heavy processing
+- Connection pooling for all services

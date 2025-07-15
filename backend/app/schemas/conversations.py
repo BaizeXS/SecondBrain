@@ -1,11 +1,16 @@
 """Conversation and message schemas."""
 
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.services.ai_service import ChatMode
+
+class ChatMode(str, Enum):
+    """对话模式枚举."""
+    CHAT = "chat"
+    SEARCH = "search"
 
 
 class MessageCreate(BaseModel):

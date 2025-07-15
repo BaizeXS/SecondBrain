@@ -22,7 +22,6 @@ async_session_factory = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False
 )
 
-
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """获取数据库会话依赖注入函数."""
     async with async_session_factory() as session:

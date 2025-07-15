@@ -16,11 +16,11 @@ class OllamaModelResponse(BaseModel):
     @property
     def size_human(self) -> str:
         """人类可读的文件大小."""
-        size = self.size
+        size: float = float(self.size)
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
-            size /= 1024.0
+            size = size / 1024.0
         return f"{size:.1f} PB"
 
 
@@ -65,11 +65,11 @@ class OllamaModelInfo(BaseModel):
     @property
     def size_human(self) -> str:
         """人类可读的文件大小."""
-        size = self.size
+        size: float = float(self.size)
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
-            size /= 1024.0
+            size = size / 1024.0
         return f"{size:.1f} PB"
 
 

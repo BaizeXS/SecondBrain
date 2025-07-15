@@ -1,5 +1,7 @@
 """Message CRUD operations."""
 
+from typing import Any
+
 from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,7 +15,7 @@ class CRUDMessage(CRUDBase[Message, MessageCreate, MessageUpdate]):
     """Message CRUD class."""
 
     async def create(
-        self, db: AsyncSession, *, obj_in: MessageCreate, **kwargs
+        self, db: AsyncSession, *, obj_in: MessageCreate, **kwargs: Any
     ) -> Message:
         """Create a new message with proper defaults."""
         # Extract data from schema
@@ -177,7 +179,7 @@ class CRUDMessage(CRUDBase[Message, MessageCreate, MessageUpdate]):
     ) -> list[Message]:
         """获取从指定消息到根消息的历史路径."""
         messages = []
-        current_id = message_id
+        current_id: int | None = message_id
 
         while current_id:
             query = select(self.model).where(self.model.id == current_id)
