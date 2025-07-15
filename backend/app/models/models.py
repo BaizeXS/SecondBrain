@@ -1,6 +1,6 @@
 """Database models for Second Brain application."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Optional
 
 from sqlalchemy import (
@@ -70,6 +70,9 @@ class User(Base, TimestampMixin):
     )
     documents: Mapped[list["Document"]] = relationship(
         "Document", back_populates="user"
+    )
+    custom_models: Mapped[list["UserCustomModel"]] = relationship(
+        "UserCustomModel", back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self):
@@ -410,13 +413,10 @@ class Message(Base, TimestampMixin):
         "Conversation", back_populates="messages"
     )
     parent_message: Mapped[Optional["Message"]] = relationship(
-        "Message",
-        remote_side=[id],
-        back_populates="child_messages"
+        "Message", remote_side=[id], back_populates="child_messages"
     )
     child_messages: Mapped[list["Message"]] = relationship(
-        "Message",
-        back_populates="parent_message"
+        "Message", back_populates="parent_message"
     )
 
     # 索引
@@ -642,3 +642,49 @@ class NoteVersion(Base, TimestampMixin):
 
     def __repr__(self):
         return f"<NoteVersion(id={self.id}, note_id={self.note_id}, version={self.version_number})>"
+
+
+class UserCustomModel(Base):
+    """用户自定义模型配置."""
+
+    __tablename__ = "user_custom_models"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    provider: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # custom, ollama, openai, anthropic
+    endpoint: Mapped[str] = mapped_column(String, nullable=False)
+    api_key: Mapped[str | None] = mapped_column(String)  # 应该加密存储
+    model_id: Mapped[str] = mapped_column(String, nullable=False)
+    capabilities: Mapped[list[str]] = mapped_column(
+        JSON, default=list
+    )  # ["chat", "vision", "embedding"]
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    meta_data: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict
+    )  # 额外配置信息
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    # 关系
+    user: Mapped["User"] = relationship("User", back_populates="custom_models")
+
+    # 索引
+    __table_args__ = (
+        Index("idx_user_custom_model_user", "user_id"),
+        UniqueConstraint("user_id", "name", name="uq_user_custom_model_name"),
+    )
+
+    def __repr__(self):
+        return f"<UserCustomModel(id={self.id}, name={self.name}, provider={self.provider})>"
