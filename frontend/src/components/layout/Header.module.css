@@ -1,0 +1,59 @@
+/* src/components/layout/Header.module.css */
+.appHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px; /* 调整内边距 */
+  height: var(--header-height, 50px); /* 使用 CSS 变量或固定值 */
+  background-color: #ffffff; /* 或你原型图的颜色 */
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  flex-shrink: 0; /* 防止在 flex 布局中被压缩 */
+  box-sizing: border-box;
+  position: relative; /* 如果需要 z-index */
+  z-index: 100;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+}
+
+.sidebarToggleButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px; /* 给按钮一些点击区域 */
+  margin-right: 10px; /* 与 Logo 的间距 */
+  font-size: 1.5rem; /* 调整图标大小 */
+  color: var(--text-color-light, #555);
+  display: flex;
+  align-items: center;
+}
+.sidebarToggleButton:hover {
+  color: var(--primary-color, #007bff);
+}
+
+.headerLogo {
+  height: 28px; /* 显著减小 Logo 高度 */
+  width: auto;  /* 保持宽高比 */
+  margin-right: 8px; /* Logo 和应用名称之间的间距 */
+}
+
+.headerAppName {
+  font-size: 1.25rem; /* 调整应用名称字号 */
+  font-weight: 600; /* 或你希望的粗细 */
+  color: var(--text-color, #333);
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  /* 放置语言切换等按钮 */
+}
+/*
+.languageButton {
+  margin-left: 20px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+*/

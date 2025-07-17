@@ -1,0 +1,157 @@
+/* src/components/profile/ProfileComponents.module.css (新建文件) */
+.profileSection {
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  overflow: hidden; /* 确保子元素不会溢出圆角 */
+}
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+.sectionHeader h3 { margin: 0; font-size: 1.1rem; color: #343a40; }
+
+.formContent { padding: 20px; }
+.formGroup { margin-bottom: 20px; }
+.formGroup label { display: block; font-size: 0.9rem; font-weight: 500; color: #495057; margin-bottom: 5px; }
+.inputField, .textareaField {
+  width: 100%; padding: 8px 12px; border: 1px solid #ced4da;
+  border-radius: 4px; font-size: 1rem; box-sizing: border-box;
+}
+.staticText { margin: 0; padding: 8px 0; font-size: 1rem; color: #212529; }
+.textareaField { resize: vertical; min-height: 80px; }
+
+.actionButton { /* ... (与 ProfilePage 中的 .navButton 类似或自定义) ... */ }
+.saveButton { background-color: var(--primary-color); color: white; }
+.cancelButton { background-color: #6c757d; color: white; }
+
+.statsGrid {
+  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+}
+.statCard {
+  background-color: #f8f9fa; border: 1px solid #e9ecef;
+  border-radius: 8px; padding: 20px; text-align: center;
+}
+.statCard svg { font-size: 1.8rem; color: var(--primary-color); margin-bottom: 10px; }
+.statCard h4 { font-size: 2rem; margin: 0 0 5px 0; color: #343a40; }
+.statCard p { font-size: 0.9rem; color: #6c757d; margin: 0; }
+
+.heatmapPlaceholder { padding: 20px; text-align: center; color: #6c757d; }
+
+/* 账户设置页面的特定样式 */
+.formActions {
+  text-align: right;
+  margin-top: 20px;
+}
+.errorMessage, .successMessage {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+.errorMessage { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; }
+.successMessage { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
+
+.sectionDescription {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-top: -10px; /* 如果在 h4 下方，减少间距 */
+    margin-bottom: 20px;
+}
+
+.connectedAccountItem {
+    display: flex;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid #f1f3f5;
+}
+.connectedAccountItem:last-child {
+    border-bottom: none;
+}
+.connectedAccountItem span {
+    flex-grow: 1;
+    margin-left: 15px;
+    font-weight: 500;
+}
+.connectButton {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    padding: 6px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.connectButton:disabled {
+    background-color: #e9ecef;
+    color: #6c757d;
+    cursor: not-allowed;
+    border-color: #e9ecef;
+}
+
+.dangerZone {
+    border-color: #f5c6cb;
+    background-color: #fdf6f6;
+}
+.dangerZone .sectionHeader {
+    background-color: #f8d7da;
+    border-bottom-color: #f5c6cb;
+}
+.dangerZone .sectionHeader h3, .dangerZone .sectionHeader svg {
+    color: #721c24;
+}
+.deleteButton {
+    background-color: var(--danger-color, #dc3545);
+    color: white;
+    border-color: var(--danger-color, #dc3545);
+}
+.deleteButton:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+/* 偏好设置页面的特定样式 */
+.themeSelector {
+    display: flex;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    overflow: hidden;
+    width: fit-content;
+}
+.themeOption {
+    background: none;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-right: 1px solid #ced4da;
+    transition: background-color 0.2s;
+}
+.themeOption:last-child {
+    border-right: none;
+}
+.themeOption:hover {
+    background-color: #f1f3f5;
+}
+.themeOption.active {
+    background-color: var(--primary-color-light, #cfe2ff);
+    color: var(--primary-color-dark, #004085);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+}
+
+.selectField {
+    width: 100%;
+    max-width: 300px;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 1rem;
+}
