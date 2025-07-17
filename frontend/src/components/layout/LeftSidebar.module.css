@@ -1,0 +1,283 @@
+/* src/components/layout/LeftSidebar.module.css */
+.leftSidebar {
+  background-color: var(--sidebar-background-color, #f8f9fa); /* 调整为你原型图的颜色 */
+  border-right: 1px solid var(--border-color, #e0e0e0);
+  height: calc(100vh - var(--header-height, 50px)); /* 减去头部高度 */
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s ease-in-out;
+  overflow-x: hidden; /* 收起时隐藏横向溢出 */
+  flex-shrink: 0;
+  position: relative; /* 为了内部绝对定位的伸缩按钮 */
+  box-sizing: border-box;
+}
+
+.leftSidebar.open {
+  width: var(--left-sidebar-width-open); /* 展开宽度，可以调整 */
+}
+
+.leftSidebar.collapsed {
+  width: var(--left-sidebar-width-collapsed); /* 非常窄的边缘 */
+  overflow: visible !important; /* !!! 允许按钮溢出显示 !!! */
+  border-right: 2px solid var(--primary-color-light, #a0c4ff);  /* 边缘可以有颜色 */
+}
+
+.toggleButtonInternal {
+  position: absolute;
+  top: 15px; /* 按钮的垂直位置 */
+  padding: 6px;
+  cursor: pointer;
+  font-size: 1.2rem; /* 图标大小 */
+  color: var(--text-color-light, #666);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fff; /* 按钮背景色 */
+  border: 1px solid var(--border-color, #ccc);
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+  width: 32px; /* 按钮宽度 */
+  height: 32px; /* 按钮高度 */
+}
+.toggleButtonInternal:hover {
+  color: var(--primary-color, #007bff);
+  background-color: #f8f9fa;
+}
+
+/* 当侧边栏展开时，按钮在右上角 */
+.leftSidebar.open .toggleButtonInternal {
+  right: 10px;
+  border-radius: 50%; /* 圆形 */
+}
+
+/* 当侧边栏收起时，按钮像个小拉手伸出来 */
+.leftSidebar.collapsed .toggleButtonInternal {
+  left: 100%; /* 将按钮的左边缘定位到父元素（窄条）的右边缘 */
+  margin-left: -10px; /* 将按钮向左拉回一点，使其部分重叠在窄条上或紧挨着 */
+                      /* 这个值约等于按钮宽度的一半减去窄条宽度的一半，如果想让按钮中心在窄条右边缘 */
+                      /* 或者设置为 -(按钮宽度 / 2) + (窄条宽度 / 2) - 想要伸出的部分 */
+                      /* 为了简单，可以设置为一个固定的负值，例如 -8px 或 -12px，然后微调 */
+  border-radius: 0 8px 8px 0; /* 右侧圆角，左侧直角，形成拉手形状 */
+  border-left: none; /* 因为是拉手，左边框可以不要 */
+  width: 32px; /* 确保宽度一致 */
+  height: 40px; /* 拉手可以高一点 */
+  top: 10px; /* 调整拉手的垂直位置 */
+}
+
+/* 侧边栏顶部的 Logo 和应用名 (如果需要) */
+.sidebarHeaderBranding {
+  display: flex;
+  align-items: center;
+  padding: 15px 20px; /* 内边距 */
+  margin-bottom: 10px; /* 与下方内容的间距 */
+  /* border-bottom: 1px solid var(--border-color, #e9ecef); */
+}
+.sidebarLogo {
+  height: 24px; /* 侧边栏内部小logo */
+  margin-right: 8px;
+}
+.sidebarAppName {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-color, #333);
+}
+
+
+.sidebarSection {
+  padding: 10px 0; /* section 上下间距 */
+  /* border-bottom: 1px solid var(--border-color-light, #f0f0f0); */ /* 可选的 section 间分割线 */
+}
+.sidebarSection:last-child {
+  border-bottom: none;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between; /* NeuroCore 和 + 号左右对齐 */
+  align-items: center;
+  padding: 0px 20px 8px 20px; /* 内边距，与 navItem 对齐 */
+}
+
+.sectionTitleLink {
+  font-weight: 500;
+  color: var(--text-color, #333);
+  font-size: 1rem; /* NeuroCore 字号 */
+  text-decoration: none;
+  padding: 8px 0; /* 为了和 navItem 的垂直padding一致，使其能正确高亮 */
+}
+.activeLinkHeavy { /* NeuroCore 被选中时的特殊高亮 */
+    color: var(--primary-color, #007bff) !important;
+    font-weight: 700;
+}
+
+
+.addButton {
+  background: none;
+  border: none;
+  color: var(--text-color-light, #666);
+  font-size: 1.2rem; /* 加号大小 */
+  cursor: pointer;
+  padding: 5px; /* 点击区域 */
+  border-radius: 4px;
+}
+.addButton:hover {
+  color: var(--primary-color, #007bff);
+  background-color: var(--hover-background-color, #f0f0f0);
+}
+
+.navItem, .navItemNoHover { /* 通用导航项 */
+  display: flex;
+  align-items: center;
+  padding: 10px 20px; /* 内边距 */
+  text-decoration: none;
+  color: var(--text-color-light, #555); /* 默认文字颜色 */
+  font-size: 0.95rem;
+  border-radius: 4px; /* 轻微圆角，用于 hover 和 active */
+  margin: 2px 10px; /* 导航项之间的垂直间距和左右边距 */
+  white-space: nowrap; /* 防止文字换行 */
+}
+.navItem:hover {
+  background-color: var(--hover-background-color, #e9ecef);
+  color: var(--text-color, #333);
+}
+.activeLink {
+  background-color: var(--primary-color-light, #cfe2ff) !important; /* 激活背景色 */
+  color: var(--primary-color, #0056b3) !important; /* 激活文字颜色 */
+  font-weight: 500;
+}
+.activeLink .navIcon {
+  color: var(--primary-color, #0056b3);
+}
+
+
+.navIcon {
+  margin-right: 12px; /* 图标和文字的间距 */
+  font-size: 1.1rem; /* 图标大小 */
+  min-width: 16px; /* 给图标一个最小宽度 */
+  flex-shrink: 0; /* 防止图标被压缩 */
+  color: var(--text-color-light, #777); /* 默认图标颜色 */
+}
+
+.navText { /* 用于包裹文字，方便收起时隐藏 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.separator {
+  border: none;
+  border-top: 1px solid var(--border-color-light, #eef0f2); /* 半透明的线 */
+  margin: 5px 20px; /* 线与上下内容的间距和左右边距 */
+}
+
+.projectList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 220px; /* 示例：限制项目列表最大高度，超出后滚动 */
+  overflow-y: auto; /* 如果项目过多，允许滚动 */
+}
+.projectItem .projectIcon {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 10px; /* 与项目名称的间距 */
+  flex-shrink: 0;
+  /* background-color 由 style 属性提供 */
+}
+
+.moreButton {
+  justify-content: flex-start; /* "More" 按钮内容靠左 */
+  color: var(--text-color-light, #7d7d7d);
+}
+
+/* 底部导航 */
+.bottomNav {
+  margin-top: auto; /* 将此部分推到底部 */
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color, #e0e0e0); /* 顶部加一条分割线 */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 10px; /* 调整内边距以适应新的布局 */
+  padding-right: 10px;
+  padding-bottom: 10px; /* 底部也加点padding */
+}
+
+.bottomNavItem {
+  flex-grow: 0; /* 用户头像不扩展 */
+  padding: 8px 10px; /* 调整底部导航项的padding */
+}
+
+.bottomNavRight {
+  display: flex;
+  gap: 5px; /* 右侧两个小图标按钮的间距 */
+}
+
+.bottomNavItemSmall { /* 用于社区和设置这种可能只有图标的 */
+  padding: 8px; /* 更小的 padding */
+}
+
+/* 当侧边栏收起时，隐藏文字，只留图标（如果底部也这样设计） */
+/* 但是根据你的要求 "缩起来以后什么都不显示，只有一个薄薄的边缘和拉出按钮即可"
+   所以 isLeftSidebarOpen && (...) 已经处理了内容显示。
+   下面的样式是如果收起时仍要显示图标的情况，现在可以不需要。
+.leftSidebar.collapsed .navText {
+  display: none;
+}
+.leftSidebar.collapsed .navItem,
+.leftSidebar.collapsed .navItemCollapsed {
+  justify-content: center;
+  padding: 12px 0;
+  margin: 2px 5px;
+}
+.leftSidebar.collapsed .navIcon {
+  margin-right: 0;
+  font-size: 1.3rem;
+}
+.leftSidebar.collapsed .projectIcon {
+    display: none;
+}
+.leftSidebar.collapsed .bottomNav {
+    padding: 5px;
+}
+.leftSidebar.collapsed .bottomNavItem,
+.leftSidebar.collapsed .bottomNavItemSmall {
+    padding: 8px;
+}
+.leftSidebar.collapsed .bottomNavRight {
+    gap: 2px;
+}
+.leftSidebar.collapsed .sectionHeader,
+.leftSidebar.collapsed .projectList,
+.leftSidebar.collapsed .moreButton,
+.leftSidebar.collapsed .sidebarHeaderBranding,
+.leftSidebar.collapsed .separator {
+    display: none;
+}
+*/
+
+/* 收起状态的简化版导航项 (如果需要为收起状态单独设置图标样式) */
+.navItemCollapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center; /* 居中图标 */
+  padding: 12px 0; /* 内边距 */
+  text-decoration: none;
+  color: var(--text-color-light, #666);
+  font-size: 1.5rem; /* 仅图标时可以大一点 */
+  margin: 5px auto; /* 上下边距，左右自动居中 */
+  width: 36px; /* 固定宽度 */
+  height: 36px; /* 固定高度 */
+  border-radius: 50%; /* 圆形背景 */
+}
+.navItemCollapsed:hover {
+  background-color: var(--hover-background-color, #e9ecef);
+  color: var(--primary-color, #007bff);
+}
+.navItemCollapsed.activeLink {
+  background-color: var(--primary-color-light, #cfe2ff);
+  color: var(--primary-color, #0056b3) !important;
+}
+.navSpacerCollapsed { /* 用于将底部图标推到底部的占位符 */
+    flex-grow: 1;
+}
