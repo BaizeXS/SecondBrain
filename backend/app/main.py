@@ -5,12 +5,13 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+
+# from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.api import api_router
@@ -31,11 +32,11 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Prometheus指标
-REQUEST_COUNT = Counter(
-    "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
-)
-REQUEST_DURATION = Histogram("http_request_duration_seconds", "HTTP request duration")
+# Prometheus指标 (暂时禁用)
+# REQUEST_COUNT = Counter(
+#     "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
+# )
+# REQUEST_DURATION = Histogram("http_request_duration_seconds", "HTTP request duration")
 
 
 @asynccontextmanager
@@ -77,7 +78,7 @@ app = FastAPI(
 # 中间件配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=settings.ALLOWED_METHODS,
     allow_headers=settings.ALLOWED_HEADERS,
@@ -91,32 +92,32 @@ if not settings.DEBUG:
     )
 
 
-@app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    """指标收集中间件."""
-    if not settings.ENABLE_METRICS:
-        return await call_next(request)
-
-    # 开始计时
-    start_time = asyncio.get_event_loop().time()
-
-    # 处理请求
-    response = await call_next(request)
-
-    # 计算处理时间
-    process_time = asyncio.get_event_loop().time() - start_time
-
-    # 记录指标
-    REQUEST_COUNT.labels(
-        method=request.method, endpoint=request.url.path, status=response.status_code
-    ).inc()
-
-    REQUEST_DURATION.observe(process_time)
-
-    # 添加响应头
-    response.headers["X-Process-Time"] = str(process_time)
-
-    return response
+# @app.middleware("http")
+# async def metrics_middleware(request: Request, call_next):
+#     """指标收集中间件."""
+#     if not settings.ENABLE_METRICS:
+#         return await call_next(request)
+#
+#     # 开始计时
+#     start_time = asyncio.get_event_loop().time()
+#
+#     # 处理请求
+#     response = await call_next(request)
+#
+#     # 计算处理时间
+#     process_time = asyncio.get_event_loop().time() - start_time
+#
+#     # 记录指标
+#     REQUEST_COUNT.labels(
+#         method=request.method, endpoint=request.url.path, status=response.status_code
+#     ).inc()
+#
+#     REQUEST_DURATION.observe(process_time)
+#
+#     # 添加响应头
+#     response.headers["X-Process-Time"] = str(process_time)
+#
+#     return response
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -185,13 +186,13 @@ async def health_check():
     }
 
 
-@app.get("/metrics")
-async def metrics():
-    """Prometheus指标端点."""
-    if not settings.ENABLE_METRICS:
-        return JSONResponse(status_code=404, content={"detail": "Metrics not enabled"})
-
-    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+# @app.get("/metrics")
+# async def metrics():
+#     """Prometheus指标端点."""
+#     if not settings.ENABLE_METRICS:
+#         return JSONResponse(status_code=404, content={"detail": "Metrics not enabled"})
+#
+#     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # 包含API路由

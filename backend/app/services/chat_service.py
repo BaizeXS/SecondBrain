@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """聊天服务类，支持文档上下文."""
 
+    def __init__(self) -> None:
+        """初始化聊天服务."""
+        pass
+
     async def create_completion_with_documents(
         self,
         db: AsyncSession,
@@ -39,7 +43,7 @@ class ChatService:
         """创建包含文档上下文的聊天完成."""
         try:
             # 将Message对象转换为字典
-            messages = []
+            messages: list[dict[str, Any]] = []
             for msg in request.messages:
                 if isinstance(msg, dict):
                     messages.append(msg)
@@ -78,10 +82,10 @@ class ChatService:
             # 如果是Space内的对话，可能需要向量搜索相关内容
             if request.space_id and not request.document_ids:
                 # 从最后一条用户消息中提取查询
-                user_query = None
-                for msg in reversed(messages):
-                    if msg.get("role") == "user":
-                        user_query = msg.get("content", "")
+                user_query: str | None = None
+                for msg_dict in reversed(messages):
+                    if isinstance(msg_dict, dict) and msg_dict.get("role") == "user":
+                        user_query = msg_dict.get("content", "")
                         break
 
                 if user_query:
@@ -166,7 +170,7 @@ class ChatService:
 
     async def _stream_completion(
         self,
-        messages: list[dict],
+        messages: list[dict[str, Any]],
         request: ChatCompletionRequest,
         mode: ChatMode,
         user: User,
@@ -298,7 +302,7 @@ class ChatService:
         conversation_id: int,
         user_id: int,
         limit: int = 20
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """获取对话历史."""
         try:
             # 获取对话
@@ -315,10 +319,10 @@ class ChatService:
 
             # 转换为消息格式
             history = []
-            for msg in reversed(messages):  # 按时间顺序
+            for message in reversed(messages):  # 按时间顺序
                 history.append({
-                    "role": msg.role,
-                    "content": msg.content
+                    "role": message.role,
+                    "content": message.content
                 })
 
             return history
@@ -367,8 +371,8 @@ class ChatService:
             # 按相关性排序
             doc_map = {doc.id: doc for doc in documents}
             sorted_docs = []
-            for result in search_results:
-                doc_id = result["document_id"]
+            for search_result in search_results:
+                doc_id = search_result["document_id"]
                 if doc_id in doc_map:
                     sorted_docs.append(doc_map[doc_id])
 
@@ -510,7 +514,7 @@ class ChatService:
             )
 
             # 构建消息历史（到目标消息的前一条为止）
-            messages = []
+            messages: list[dict[str, Any]] = []
             for msg in reversed(all_messages):
                 if msg.id == message_id:
                     break

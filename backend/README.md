@@ -51,6 +51,16 @@ Second Brain Web 应用是一个集成 AI 对话、智能研究助手和个人�
 - 补充：初期使用 Perplexity 提供的 Deep Research API，第二个版本的时候，基于 Google 开源项目参考 Google Gemini Fullstack LangGraph Quickstart 改造成支持多家 API 的 Deep Research Agent
 - **扩展计划**：后续可添加 AI PPT 生成、代码助手、写作助手等
 
+**Agent 系统设计架构**：
+- **官方 Agent**（user_id = NULL）：
+  - Prompt Agent：预设提示词的简单代理（如写作助手、翻译助手）
+  - LangGraph Agent（未来）：基于 LangGraph 的复杂多步骤代理，支持工具调用
+- **用户自定义 Agent**（user_id = 用户ID）：
+  - 用户可创建自己的 Prompt Agent
+  - 通过 agent_type 字段区分类型（research/analysis/custom 等）
+  - config 字段灵活存储配置（Prompt Agent 存简单配置，LangGraph Agent 存复杂图定义）
+- **设计优势**：向后兼容，便于未来扩展
+
 #### 2.1.3 知识库（Space）
 
 - **多 Space 管理**：用户可创建多个独立的知识空间，支持分类管理
@@ -193,6 +203,12 @@ Second Brain Web 应用是一个集成 AI 对话、智能研究助手和个人�
   - 引用来源标注（Search 模式）- 可点击跳转
   - 数学公式渲染 - LaTeX 支持
   - 图片内容理解 - 支持图片上传分析
+
+**重要设计理念**：
+- AI Chat 页面的对话是**独立的**，不与任何 Space 关联
+- 这些对话类似于搜索引擎，用于快速获取信息和概念理解
+- 只有在 Space 内创建的对话或通过 Deep Research 创建的对话才会关联到特定 Space
+- 技术实现：Conversation 表的 space_id 字段可为空（NULL），AI Chat 页面的对话该字段为 NULL
 
 ### 3.2 Deep Research 功能
 

@@ -15,7 +15,7 @@ dependencies = [
     # 数据库相关
     "sqlalchemy[asyncio]>=2.0.41",
     "alembic>=1.16.2",
-    "asyncpg>=0.30.0", # PostgreSQL异步驱动
+    "asyncpg>=0.30.0",
     "redis>=6.2.0",
     # 数据验证和序列化
     "pydantic>=2.11.7",
@@ -39,7 +39,7 @@ dependencies = [
     "python-pptx>=1.0.2",
     "markdown>=3.5.0",
     "python-multipart>=0.0.20",
-    "reportlab>=4.0.0",  # 保留用于PDF生成
+    "reportlab>=4.0.0",         # 保留用于PDF生成
     # HTTP客户端和工具
     "httpx>=0.28.1",
     "aiofiles>=24.1.0",
@@ -54,6 +54,14 @@ dependencies = [
     "structlog>=25.4.0",
 ]
 
+[project.optional-dependencies]
+enhanced = [
+    "markitdown[all]>=0.1.0", # Microsoft's document conversion tool
+]
+academic = [
+    # "pdfmathtranslate",  # For academic PDF processing (future)
+]
+
 [dependency-groups]
 dev = [
     "black>=25.1.0",
@@ -63,12 +71,13 @@ dev = [
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=6.2.1",
     "ruff>=0.11.13",
+    "aiosqlite>=0.20.0",     # For async SQLite in tests
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "--cov=src --cov-report=html --cov-report=term-missing"
+addopts = "--cov=app --cov-report=html --cov-report=term-missing"
 
 [tool.black]
 line-length = 88

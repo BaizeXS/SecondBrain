@@ -2,7 +2,7 @@
 
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -14,7 +14,7 @@ from app.schemas.conversations import SearchResponse, SearchResult
 class SearchService:
     """搜索服务."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.perplexity_api_key = settings.PERPLEXITY_API_KEY
         self.perplexity_url = "https://api.perplexity.ai/chat/completions"
 
@@ -24,9 +24,10 @@ class SearchService:
         search_scope: str = "web",
         max_results: int = 10,
         include_summary: bool = True,
-        user: Optional[User] = None,
+        user: User | None = None,  # 保留以备将来使用（如用户级别的搜索历史）
     ) -> SearchResponse:
         """执行搜索."""
+        _ = user  # 暂时未使用，保留以备将来功能
         start_time = time.time()
 
         try:
@@ -69,7 +70,7 @@ class SearchService:
         query: str,
         search_scope: str,
         max_results: int,
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """使用Perplexity API进行搜索."""
         if not self.perplexity_api_key:
             # 模拟搜索结果
@@ -121,8 +122,8 @@ class SearchService:
             return self._mock_search_results(query, max_results)
 
     def _parse_perplexity_response(
-        self, data: Dict[str, Any], query: str
-    ) -> List[SearchResult]:
+        self, data: dict[str, Any], query: str
+    ) -> list[SearchResult]:
         """解析Perplexity API响应."""
         results = []
 
@@ -159,7 +160,7 @@ class SearchService:
 
         return results
 
-    def _mock_search_results(self, query: str, max_results: int) -> List[SearchResult]:
+    def _mock_search_results(self, query: str, max_results: int) -> list[SearchResult]:
         """生成模拟搜索结果."""
         results = []
 
@@ -177,7 +178,7 @@ class SearchService:
 
         return results
 
-    async def _generate_summary(self, query: str, results: List[SearchResult]) -> str:
+    async def _generate_summary(self, query: str, results: list[SearchResult]) -> str:
         """生成搜索结果摘要."""
         if not results:
             return f"没有找到关于'{query}'的相关信息。"

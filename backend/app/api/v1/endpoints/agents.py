@@ -1,7 +1,9 @@
 """Agent endpoints v2 - 使用服务层和CRUD层的完整版本."""
 
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_active_user
@@ -13,7 +15,10 @@ from app.schemas.agents import (
     AgentExecuteResponse,
     AgentListResponse,
     AgentResponse,
+    DeepResearchRequest,
+    DeepResearchResponse,
 )
+from app.services.deep_research_service import deep_research_service
 
 router = APIRouter()
 
@@ -32,18 +37,18 @@ async def get_agents(
     agents = [
         {
             "id": 1,
-            "name": "研究助手",
-            "description": "帮助你进行深度研究和信息收集",
+            "name": "Deep Research",
+            "description": "基于Perplexity的深度研究代理，自动收集、分析和整理研究资料",
             "category": "research",
-            "model": "gpt-4o-mini",
+            "model": "perplexity",
             "temperature": 0.7,
-            "capabilities": ["search", "analysis", "summary"],
+            "capabilities": ["deep-research", "auto-collect", "analysis", "summary"],
             "is_public": True,
             "is_active": True,
             "is_verified": True,
             "usage_count": 0,
             "rating": 5.0,
-            "tags": ["research", "analysis"],
+            "tags": ["research", "deep-research", "perplexity"],
             "created_by": current_user.id,
             "created_at": "2024-01-01T00:00:00",
             "updated_at": "2024-01-01T00:00:00",
@@ -117,19 +122,19 @@ async def get_agent(
     agents = {
         1: {
             "id": 1,
-            "name": "研究助手",
-            "description": "帮助你进行深度研究和信息收集",
+            "name": "Deep Research",
+            "description": "基于Perplexity的深度研究代理，自动收集、分析和整理研究资料",
             "category": "research",
-            "model": "gpt-4o-mini",
+            "model": "perplexity",
             "temperature": 0.7,
-            "max_tokens": 2000,
-            "capabilities": ["search", "analysis", "summary"],
+            "max_tokens": None,
+            "capabilities": ["deep-research", "auto-collect", "analysis", "summary"],
             "is_public": True,
             "is_active": True,
             "is_verified": True,
             "usage_count": 0,
             "rating": 5.0,
-            "tags": ["research", "analysis"],
+            "tags": ["research", "deep-research", "perplexity"],
             "created_by": current_user.id,
             "created_at": "2024-01-01T00:00:00",
             "updated_at": "2024-01-01T00:00:00",
@@ -184,21 +189,59 @@ async def get_agent(
     return AgentResponse(**agent)
 
 
-@router.post("/{agent_id}/execute", response_model=AgentExecuteResponse)
+@router.post("/{agent_id}/execute")
 async def execute_agent(
     agent_id: int,
     request: AgentExecuteRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> AgentExecuteResponse:
+):
     """执行AI代理."""
-    # 简化版本：返回模拟响应
-    if agent_id == 1:  # 研究助手
-        response = f"根据你的查询 '{request.prompt}'，我进行了以下研究：\n\n"
-        response += "1. 搜索相关资料\n"
-        response += "2. 分析信息\n"
-        response += "3. 总结要点\n\n"
-        response += "这是一个演示响应。在实际应用中，这里会返回真实的研究结果。"
+    # Deep Research代理
+    if agent_id == 1:
+        # 调用Deep Research服务
+        if request.stream:
+            # 流式响应
+            async def generate():
+                async for chunk in deep_research_service.stream_research(
+                    query=request.prompt,
+                    mode=request.mode or "general",
+                    user=current_user,
+                    db=db
+                ):
+                    yield f"data: {chunk}\n\n"
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(
+                generate(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "X-Accel-Buffering": "no",
+                }
+            )
+        else:
+            # 非流式响应
+            result = await deep_research_service.create_research(
+                query=request.prompt,
+                mode=request.mode or "general",
+                user=current_user,
+                db=db,
+                space_id=request.space_id
+            )
+            if "error" in result:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=result["error"]
+                )
+            return AgentExecuteResponse(
+                execution_id=result.get("research_id", ""),
+                agent_id=agent_id,
+                status="completed",
+                result=result,
+                execution_time=0,
+                created_at=result.get("created_at", datetime.now())
+            )
+    # 其他代理的简化实现
     elif agent_id == 2:  # 写作助手
         response = f"基于你的需求 '{request.prompt}'，我创作了以下内容：\n\n"
         response += "这是一个演示响应。在实际应用中，这里会返回真实的创作内容。"
@@ -211,6 +254,7 @@ async def execute_agent(
             detail="代理不存在",
         )
 
+    # 非Deep Research代理的响应
     return AgentExecuteResponse(
         execution_id="exec_" + str(agent_id),
         agent_id=agent_id,
@@ -218,7 +262,7 @@ async def execute_agent(
         result={"response": response},
         execution_time=1.5,
         tokens_used=100,
-        created_at="2024-01-01T00:00:00",
+        created_at=datetime.now(),
     )
 
 
@@ -256,3 +300,54 @@ async def create_agent(
         created_at="2024-01-01T00:00:00",
         updated_at="2024-01-01T00:00:00",
     )
+
+
+@router.post("/deep-research", response_model=DeepResearchResponse)
+async def create_deep_research(
+    request: DeepResearchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> DeepResearchResponse | StreamingResponse:
+    """创建Deep Research任务 - 专用端点."""
+    if request.stream:
+        # 流式响应
+        async def generate():
+            async for chunk in deep_research_service.stream_research(
+                query=request.query,
+                mode=request.mode,
+                user=current_user,
+                db=db
+            ):
+                yield f"data: {chunk}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            }
+        )
+    else:
+        # 非流式响应
+        result = await deep_research_service.create_research(
+            query=request.query,
+            mode=request.mode,
+            user=current_user,
+            db=db,
+            space_id=request.space_id
+        )
+        if "error" in result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=result["error"]
+            )
+        return DeepResearchResponse(
+            research_id=result.get("research_id", ""),
+            space_id=result.get("space_id"),
+            query=result.get("query", ""),
+            mode=result.get("mode", ""),
+            status=result.get("status", ""),
+            result=result.get("result"),
+            created_at=datetime.now()
+        )

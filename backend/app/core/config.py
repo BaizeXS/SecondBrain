@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -50,16 +50,17 @@ class Settings(BaseSettings):
     QDRANT_PORT: int = 6333
     QDRANT_API_KEY: str | None = None
 
-    # Elasticsearch配置
-    ELASTICSEARCH_URL: str = "http://localhost:9200"
-    ELASTICSEARCH_INDEX_PREFIX: str = "secondbrain"
-
     # API限流配置
     RATE_LIMIT_FREE_USER: int = 20  # 免费用户每日限制
     RATE_LIMIT_PREMIUM_USER: int = 200  # 付费用户每日限制
     RATE_LIMIT_BURST: int = 10  # 突发请求限制
 
-    # AI服务配置
+    # AI服务配置 - OpenRouter（推荐）
+    OPENROUTER_API_KEY: str | None = None
+    OPENROUTER_SITE_URL: str | None = None  # 您的应用 URL
+    OPENROUTER_APP_NAME: str = "SecondBrain"  # 您的应用名称
+    
+    # AI服务配置 - 传统提供商（保留以便兼容）
     OPENAI_API_KEY: str | None = None
     OPENAI_BASE_URL: str | None = None
 
@@ -73,11 +74,14 @@ class Settings(BaseSettings):
     PERPLEXITY_API_KEY: str | None = None
     PERPLEXITY_BASE_URL: str = "https://api.perplexity.ai"
 
+    # Ollama配置
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_ENABLED: bool = True
+
     # 默认AI模型配置
-    DEFAULT_CHAT_MODEL: str = "gpt-4o-mini"
-    DEFAULT_SEARCH_MODEL: str = "gpt-4o-mini"
-    DEFAULT_THINK_MODEL: str = "deepseek-reasoner"
-    DEFAULT_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    DEFAULT_CHAT_MODEL: str = "openrouter/auto"
+    DEFAULT_SEARCH_MODEL: str = "perplexity/sonar"
+    DEFAULT_EMBEDDING_MODEL: str = "openai/text-embedding-3-small"
 
     # 文件上传配置
     MAX_FILE_SIZE_MB: int = 100
@@ -95,12 +99,8 @@ class Settings(BaseSettings):
         "image/webp",
     ]
 
-    # Celery配置
-    CELERY_BROKER_URL: str = Field(default="redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND: str = Field(default="redis://localhost:6379/0")
-
     # CORS配置
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
     ALLOWED_METHODS: list[str] = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     ALLOWED_HEADERS: list[str] = ["*"]
 
@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOG_FILE: str | None = None
+
+    # 监控配置
+    ENABLE_METRICS: bool = False
 
     # WebSocket配置
     WEBSOCKET_HEARTBEAT_INTERVAL: int = 30
@@ -123,23 +126,23 @@ class Settings(BaseSettings):
             return v
         raise ValueError("DATABASE_URL must be provided")
 
-    @field_validator("ALLOWED_ORIGINS", mode="before")
-    def assemble_cors_origins(cls, v: str | None) -> list[str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        elif isinstance(v, list | str):
-            return v
-        raise ValueError("ALLOWED_ORIGINS must be a valid list")
+    @property
+    def cors_origins(self) -> list[str]:
+        """将 ALLOWED_ORIGINS 字符串转换为列表"""
+        if isinstance(self.ALLOWED_ORIGINS, str):
+            return [i.strip() for i in self.ALLOWED_ORIGINS.split(",")]
+        return []
 
     @property
     def max_file_size_bytes(self) -> int:
         """Get max file size in bytes."""
         return self.MAX_FILE_SIZE_MB * 1024 * 1024
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "allow"  # 允许额外的环境变量
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="allow",  # 允许额外的环境变量
+    )
 
 
 # 全局设置实例
@@ -163,7 +166,8 @@ REDIS_CONFIG = {
     "socket_keepalive_options": {},
 }
 
-# AI模型配置映射
+# AI模型配置映射（已弃用 - 现在使用 OpenRouter 统一管理）
+# 保留此配置仅用于向后兼容
 AI_MODEL_CONFIGS = {
     "openai": {
         "api_key": settings.OPENAI_API_KEY,
@@ -199,6 +203,14 @@ AI_MODEL_CONFIGS = {
         "models": {
             "chat": ["deepseek-chat", "deepseek-reasoner"],
             "reasoning": ["deepseek-reasoner"],
+        },
+    },
+    "ollama": {
+        "base_url": settings.OLLAMA_BASE_URL,
+        "models": {
+            "chat": ["llama2:7b", "mistral:7b", "qwen:7b", "gemma:2b"],
+            "embedding": ["nomic-embed-text"],
+            "code": ["deepseek-coder:6.7b"],
         },
     },
 }

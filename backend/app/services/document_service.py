@@ -1,435 +1,492 @@
-"""Document processing service."""
+"""Complete document management service with content processing and CRUD operations."""
 
-import logging
+import hashlib
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-logger = logging.getLogger(__name__)
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app import crud
+from app.models.models import Document, User
+from app.schemas.documents import DocumentCreate
+from app.services.document_content_service import DocumentContentService
+from app.services.web_scraper_service import web_scraper_service
 
 
 class DocumentService:
-    """文档处理服务."""
+    """完整的文档管理服务 - 包含内容处理和数据库操作."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化文档服务."""
-        self.supported_types = {
-            ".pdf": self._extract_pdf,
-            ".docx": self._extract_docx,
-            ".doc": self._extract_doc,
-            ".txt": self._extract_txt,
-            ".md": self._extract_markdown,
-            ".pptx": self._extract_pptx,
-            ".ppt": self._extract_ppt,
-        }
+        self.content_service = DocumentContentService()
 
-    async def extract_content(self, file_path: Path, file_ext: str) -> str:
-        """提取文档内容."""
+    async def create_document(
+        self,
+        db: AsyncSession,
+        space_id: int,
+        filename: str,
+        content: str,
+        content_type: str,
+        file_size: int,
+        user: User,
+    ) -> Document:
+        """创建文档记录."""
+        # 生成文件hash
+        file_hash = hashlib.sha256(content.encode()).hexdigest()
+
+        # 检查文档是否已存在
+        existing = await crud.crud_document.get_by_hash(
+            db, file_hash=file_hash, space_id=space_id
+        )
+        if existing:
+            return existing
+
+        # 创建文档schema
+        document_in = DocumentCreate(
+            filename=filename,
+            content_type=content_type,
+            size=file_size,
+            space_id=space_id,
+        )
+
+        # 创建文档
+        document = await crud.crud_document.create(
+            db,
+            obj_in=document_in,
+            user_id=user.id,
+            file_path=f"spaces/{space_id}/documents/{file_hash}",
+            file_hash=file_hash,
+            original_filename=filename,
+            content=content[:1000],  # 存储前1000字符作为预览
+            processing_status="completed",
+            extraction_status="completed",
+            embedding_status="pending",
+        )
+
+        # 更新空间统计
+        await crud.crud_space.update_stats(
+            db, space_id=space_id, document_delta=1, size_delta=file_size
+        )
+
+        return document
+
+    async def get_space_documents(
+        self,
+        db: AsyncSession, space_id: int, skip: int = 0, limit: int = 20
+    ) -> list[Document]:
+        """获取空间内的文档列表."""
+        return await crud.crud_document.get_by_space(
+            db, space_id=space_id, skip=skip, limit=limit
+        )
+
+    async def get_document_by_id(
+        self,
+        db: AsyncSession, document_id: int, user: User
+    ) -> Document | None:
+        """根据ID获取文档."""
+        document = await crud.crud_document.get(db, id=document_id)
+
+        if not document:
+            return None
+
+        # 检查权限
+        space = await crud.crud_space.get(db, id=document.space_id)
+        if space and (space.user_id == user.id or space.is_public):
+            return document
+
+        # 检查协作权限
+        access = await crud.crud_space.get_user_access(
+            db, space_id=document.space_id, user_id=user.id
+        )
+        if access:
+            return document
+
+        return None
+
+    async def delete_document(
+        self,
+        db: AsyncSession, document: Document
+    ) -> bool:
+        """删除文档."""
+        # 更新空间统计
+        await crud.crud_space.update_stats(
+            db,
+            space_id=document.space_id,
+            document_delta=-1,
+            size_delta=-document.file_size,
+        )
+
+        # 删除文档
+        await crud.crud_document.remove(db, id=document.id)
+        return True
+
+    async def search_documents(
+        self,
+        db: AsyncSession,
+        space_id: int,
+        query: str,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> list[Document]:
+        """搜索文档."""
+        return await crud.crud_document.search(
+            db, space_id=space_id, query=query, skip=skip, limit=limit
+        )
+
+    async def update_processing_status(
+        self,
+        db: AsyncSession,
+        document_id: int,
+        processing_status: str,
+        extraction_status: str | None = None,
+        embedding_status: str | None = None,
+    ) -> Document | None:
+        """更新文档处理状态."""
+        return await crud.crud_document.update_processing_status(
+            db,
+            document_id=document_id,
+            processing_status=processing_status,
+            extraction_status=extraction_status,
+            embedding_status=embedding_status,
+        )
+
+    async def import_from_url(
+        self,
+        db: AsyncSession,
+        url: str,
+        space_id: int,
+        user: User,
+        title: str | None = None,
+        tags: list[str] | None = None,
+        save_snapshot: bool = True,
+    ) -> dict[str, Any]:
+        """从URL导入网页内容."""
         try:
-            if file_ext not in self.supported_types:
-                raise ValueError(f"不支持的文件类型: {file_ext}")
+            # 抓取网页
+            web_data = await web_scraper_service.fetch_webpage(url)
 
-            extractor = self.supported_types[file_ext]
-            content = await extractor(file_path)
+            if web_data["status"] != "success":
+                return {
+                    "status": "error",
+                    "error": web_data.get("error", "网页抓取失败"),
+                    "url": url
+                }
 
-            return content or ""
+            # 准备文档数据
+            content = web_data["content"]
+            metadata = web_data["metadata"]
+            snapshot_html = web_data.get("snapshot_html", "") if save_snapshot else None
 
-        except Exception as e:
-            logger.error(f"提取文档内容失败 {file_path}: {str(e)}")
-            raise
+            # 使用提供的标题或从网页获取的标题
+            doc_title = title or metadata.get("title", url)
 
-    async def _extract_pdf(self, file_path: Path) -> str:
-        """提取PDF内容."""
-        try:
-            import PyPDF2
+            # 生成文件名
+            filename = f"web_{hashlib.md5(url.encode()).hexdigest()[:8]}.html"
 
-            content = []
-            with open(file_path, "rb") as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                for page in pdf_reader.pages:
-                    text = page.extract_text()
-                    if text:
-                        content.append(text)
+            # 生成文件hash
+            file_hash = hashlib.sha256(content.encode()).hexdigest()
+            file_path = f"spaces/{space_id}/web/{file_hash}"
 
-            return "\n".join(content)
-
-        except ImportError:
-            logger.warning("PyPDF2 未安装，使用基础文本提取")
-            return await self._extract_with_textract(file_path)
-        except Exception as e:
-            logger.error(f"PDF提取失败: {str(e)}")
-            return await self._extract_with_textract(file_path)
-
-    async def _extract_docx(self, file_path: Path) -> str:
-        """提取DOCX内容."""
-        try:
-            from docx import Document
-
-            doc = Document(file_path)
-            content = []
-
-            for paragraph in doc.paragraphs:
-                if paragraph.text.strip():
-                    content.append(paragraph.text)
-
-            # 提取表格内容
-            for table in doc.tables:
-                for row in table.rows:
-                    row_text = []
-                    for cell in row.cells:
-                        if cell.text.strip():
-                            row_text.append(cell.text.strip())
-                    if row_text:
-                        content.append(" | ".join(row_text))
-
-            return "\n".join(content)
-
-        except ImportError:
-            logger.warning("python-docx 未安装，使用基础文本提取")
-            return await self._extract_with_textract(file_path)
-        except Exception as e:
-            logger.error(f"DOCX提取失败: {str(e)}")
-            return await self._extract_with_textract(file_path)
-
-    async def _extract_doc(self, file_path: Path) -> str:
-        """提取DOC内容."""
-        try:
-            import textract
-
-            # 使用textract处理老版本Word文档
-            text = textract.process(str(file_path))
-            return text.decode("utf-8")
-
-        except ImportError:
-            logger.warning("textract 未安装，无法处理DOC文件")
-            return "无法提取DOC文件内容，请转换为DOCX格式"
-        except Exception as e:
-            logger.error(f"DOC提取失败: {str(e)}")
-            return "DOC文件提取失败"
-
-    async def _extract_txt(self, file_path: Path) -> str:
-        """提取TXT内容."""
-        try:
-            # 尝试多种编码
-            encodings = ["utf-8", "gbk", "gb2312", "latin-1"]
-
-            for encoding in encodings:
-                try:
-                    with open(file_path, "r", encoding=encoding) as file:
-                        return file.read()
-                except UnicodeDecodeError:
-                    continue
-
-            # 如果所有编码都失败，使用错误处理
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
-                return file.read()
-
-        except Exception as e:
-            logger.error(f"TXT提取失败: {str(e)}")
-            return ""
-
-    async def _extract_markdown(self, file_path: Path) -> str:
-        """提取Markdown内容."""
-        return await self._extract_txt(file_path)
-
-    async def _extract_pptx(self, file_path: Path) -> str:
-        """提取PPTX内容."""
-        try:
-            from pptx import Presentation
-
-            prs = Presentation(file_path)
-            content = []
-
-            for slide in prs.slides:
-                slide_content = []
-
-                for shape in slide.shapes:
-                    if hasattr(shape, "text") and shape.text.strip():
-                        slide_content.append(shape.text)
-
-                if slide_content:
-                    content.append("\n".join(slide_content))
-
-            return "\n\n---\n\n".join(content)
-
-        except ImportError:
-            logger.warning("python-pptx 未安装，使用基础文本提取")
-            return await self._extract_with_textract(file_path)
-        except Exception as e:
-            logger.error(f"PPTX提取失败: {str(e)}")
-            return await self._extract_with_textract(file_path)
-
-    async def _extract_ppt(self, file_path: Path) -> str:
-        """提取PPT内容."""
-        try:
-            import textract
-
-            text = textract.process(str(file_path))
-            return text.decode("utf-8")
-
-        except ImportError:
-            logger.warning("textract 未安装，无法处理PPT文件")
-            return "无法提取PPT文件内容，请转换为PPTX格式"
-        except Exception as e:
-            logger.error(f"PPT提取失败: {str(e)}")
-            return "PPT文件提取失败"
-
-    async def _extract_with_textract(self, file_path: Path) -> str:
-        """使用textract提取内容."""
-        try:
-            import textract
-
-            text = textract.process(str(file_path))
-            return text.decode("utf-8")
-
-        except ImportError:
-            logger.warning("textract 未安装，无法提取文档内容")
-            return "无法提取文档内容，请安装相应的处理库"
-        except Exception as e:
-            logger.error(f"textract提取失败: {str(e)}")
-            return "文档内容提取失败"
-
-    async def get_document_metadata(self, file_path: Path) -> Dict[str, Any]:
-        """获取文档元数据."""
-        try:
-            stat = file_path.stat()
-
-            metadata = {
-                "file_size": stat.st_size,
-                "created_time": stat.st_ctime,
-                "modified_time": stat.st_mtime,
-                "file_extension": file_path.suffix.lower(),
+            # 准备元数据
+            meta_data = {
+                **metadata,
+                "source_url": url,
+                "imported_at": datetime.now().isoformat(),
+                "has_snapshot": save_snapshot
             }
 
-            # 根据文件类型获取特定元数据
-            file_ext = file_path.suffix.lower()
+            # 如果保存快照，将其存储在meta_data中
+            if snapshot_html:
+                meta_data["snapshot_html"] = snapshot_html
 
-            if file_ext == ".pdf":
-                metadata.update(await self._get_pdf_metadata(file_path))
-            elif file_ext in [".docx", ".doc"]:
-                metadata.update(await self._get_doc_metadata(file_path))
-            elif file_ext in [".pptx", ".ppt"]:
-                metadata.update(await self._get_ppt_metadata(file_path))
+            # 创建文档schema
+            document_in = DocumentCreate(
+                filename=filename,
+                content_type="text/html",
+                size=len(content.encode()),
+                space_id=space_id,
+                tags=tags,
+                meta_data=meta_data,
+            )
 
-            return metadata
+            # 创建文档记录
+            document = await crud.crud_document.create(
+                db,
+                obj_in=document_in,
+                user_id=user.id,
+                file_path=file_path,
+                file_hash=file_hash,
+                original_filename=doc_title,
+                title=doc_title,
+                content=content,
+                processing_status="completed",
+                extraction_status="completed",
+                url=url,  # 保存原始URL
+            )
 
-        except Exception as e:
-            logger.error(f"获取文档元数据失败: {str(e)}")
-            return {}
+            # 更新空间统计
+            await crud.crud_space.update_stats(
+                db,
+                space_id=space_id,
+                document_delta=1,
+                size_delta=document.file_size,
+            )
 
-    async def _get_pdf_metadata(self, file_path: Path) -> Dict[str, Any]:
-        """获取PDF元数据."""
-        try:
-            import PyPDF2
-
-            with open(file_path, "rb") as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-
-                metadata = {
-                    "page_count": len(pdf_reader.pages),
-                }
-
-                if pdf_reader.metadata:
-                    metadata.update(
-                        {
-                            "title": pdf_reader.metadata.get("/Title", ""),
-                            "author": pdf_reader.metadata.get("/Author", ""),
-                            "subject": pdf_reader.metadata.get("/Subject", ""),
-                            "creator": pdf_reader.metadata.get("/Creator", ""),
-                        }
-                    )
-
-                return metadata
-
-        except Exception as e:
-            logger.error(f"获取PDF元数据失败: {str(e)}")
-            return {}
-
-    async def _get_doc_metadata(self, file_path: Path) -> Dict[str, Any]:
-        """获取Word文档元数据."""
-        try:
-            from docx import Document
-
-            if file_path.suffix.lower() == ".docx":
-                doc = Document(file_path)
-
-                metadata = {
-                    "paragraph_count": len(doc.paragraphs),
-                    "table_count": len(doc.tables),
-                }
-
-                if doc.core_properties:
-                    metadata.update(
-                        {
-                            "title": doc.core_properties.title or "",
-                            "author": doc.core_properties.author or "",
-                            "subject": doc.core_properties.subject or "",
-                            "created": str(doc.core_properties.created)
-                            if doc.core_properties.created
-                            else "",
-                            "modified": str(doc.core_properties.modified)
-                            if doc.core_properties.modified
-                            else "",
-                        }
-                    )
-
-                return metadata
-
-            return {}
+            return {
+                "status": "success",
+                "document_id": document.id,
+                "url": url,
+                "title": document.title,
+                "metadata": metadata
+            }
 
         except Exception as e:
-            logger.error(f"获取Word元数据失败: {str(e)}")
-            return {}
+            return {
+                "status": "error",
+                "error": str(e),
+                "url": url
+            }
 
-    async def _get_ppt_metadata(self, file_path: Path) -> Dict[str, Any]:
-        """获取PowerPoint元数据."""
-        try:
-            from pptx import Presentation
+    async def batch_import_urls(
+        self,
+        db: AsyncSession,
+        urls: list[str],
+        space_id: int,
+        user: User,
+        tags: list[str] | None = None,
+        save_snapshot: bool = True,
+    ) -> list[dict[str, Any]]:
+        """批量导入多个URL."""
+        results = []
 
-            if file_path.suffix.lower() == ".pptx":
-                prs = Presentation(file_path)
+        for url in urls:
+            result = await self.import_from_url(
+                db, url, space_id, user, tags=tags, save_snapshot=save_snapshot
+            )
+            results.append(result)
 
-                metadata = {
-                    "slide_count": len(prs.slides),
-                }
+        return results
 
-                if prs.core_properties:
-                    metadata.update(
-                        {
-                            "title": prs.core_properties.title or "",
-                            "author": prs.core_properties.author or "",
-                            "subject": prs.core_properties.subject or "",
-                            "created": str(prs.core_properties.created)
-                            if prs.core_properties.created
-                            else "",
-                            "modified": str(prs.core_properties.modified)
-                            if prs.core_properties.modified
-                            else "",
-                        }
-                    )
+    async def get_web_snapshot(
+        self,
+        db: AsyncSession,
+        document_id: int,
+        user: User,
+    ) -> dict[str, Any] | None:
+        """获取网页快照."""
+        document = await self.get_document_by_id(db, document_id, user)
 
-                return metadata
+        if not document:
+            return None
 
-            return {}
+        # 检查是否是网页文档
+        if not document.meta_data or "source_url" not in document.meta_data:
+            return None
 
-        except Exception as e:
-            logger.error(f"获取PowerPoint元数据失败: {str(e)}")
-            return {}
-
-    async def split_document(
-        self, content: str, chunk_size: int = 1000, overlap: int = 100
-    ) -> List[str]:
-        """将文档内容分割成块."""
-        if not content:
-            return []
-
-        chunks = []
-        start = 0
-
-        while start < len(content):
-            end = start + chunk_size
-
-            # 如果不是最后一块，尝试在句号或换行符处分割
-            if end < len(content):
-                # 寻找最近的句号或换行符
-                for i in range(end, max(start + chunk_size // 2, start), -1):
-                    if content[i] in ".。\n":
-                        end = i + 1
-                        break
-
-            chunk = content[start:end].strip()
-            if chunk:
-                chunks.append(chunk)
-
-            start = end - overlap if end < len(content) else end
-
-        return chunks
-
-    async def extract_keywords(self, content: str, max_keywords: int = 10) -> List[str]:
-        """提取关键词（简化版）."""
-        if not content:
-            return []
-
-        # 简单的关键词提取（基于词频）
-        import re
-        from collections import Counter
-
-        # 清理文本
-        text = re.sub(r"[^\w\s]", " ", content.lower())
-        words = text.split()
-
-        # 过滤停用词（简化版）
-        stop_words = {
-            "the",
-            "a",
-            "an",
-            "and",
-            "or",
-            "but",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "with",
-            "by",
-            "的",
-            "了",
-            "在",
-            "是",
-            "我",
-            "有",
-            "和",
-            "就",
-            "不",
-            "人",
-            "都",
-            "一",
-            "一个",
-            "上",
-            "也",
-            "很",
-            "到",
-            "说",
-            "要",
-            "去",
-            "你",
-            "会",
-            "着",
-            "没有",
-            "看",
-            "好",
-            "自己",
-            "这",
+        snapshot_data = {
+            "document_id": document.id,
+            "url": document.meta_data["source_url"],
+            "title": document.title,
+            "metadata": document.meta_data,
+            "created_at": document.created_at,
         }
 
-        # 过滤短词和停用词
-        filtered_words = [
-            word for word in words if len(word) > 2 and word not in stop_words
-        ]
+        # 获取快照HTML
+        if "snapshot_html" in document.meta_data:
+            snapshot_data["snapshot_html"] = document.meta_data["snapshot_html"]
+            # 转换为Markdown
+            snapshot_data["snapshot_markdown"] = web_scraper_service.convert_to_markdown(
+                document.meta_data["snapshot_html"]
+            )
 
-        # 统计词频
-        word_counts = Counter(filtered_words)
+        return snapshot_data
 
-        # 返回最常见的词
-        return [word for word, count in word_counts.most_common(max_keywords)]
+    async def analyze_url(
+        self,
+        url: str,
+    ) -> dict[str, Any]:
+        """分析URL内容（不保存）."""
+        try:
+            # 抓取网页
+            web_data = await web_scraper_service.fetch_webpage(url)
 
-    async def summarize_content(self, content: str, max_length: int = 200) -> str:
-        """生成内容摘要（简化版）."""
-        if not content:
-            return ""
+            if web_data["status"] != "success":
+                return {
+                    "url": url,
+                    "can_import": False,
+                    "error": web_data.get("error", "无法访问该网页")
+                }
 
-        if len(content) <= max_length:
-            return content
+            content = web_data["content"]
+            metadata = web_data["metadata"]
 
-        # 简单的摘要生成：取前几句话
-        sentences = content.split("。")
-        summary = ""
+            # 分析内容
+            word_count = len(content.split())
 
-        for sentence in sentences:
-            if len(summary + sentence + "。") <= max_length:
-                summary += sentence + "。"
-            else:
-                break
+            # 提取链接
+            links = web_scraper_service.extract_links(
+                web_data.get("snapshot_html", ""), url
+            )
 
-        return summary or content[:max_length] + "..."
+            # 简单的标签建议（基于标题和描述）
+            suggested_tags = []
+            title = metadata.get("title", "").lower()
+            description = metadata.get("description", "").lower()
+
+            # 基于关键词的简单标签建议
+            tech_keywords = ["python", "javascript", "ai", "machine learning", "programming", "code", "software"]
+            for keyword in tech_keywords:
+                if keyword in title or keyword in description:
+                    suggested_tags.append(keyword)
+
+            return {
+                "url": url,
+                "title": metadata.get("title", ""),
+                "description": metadata.get("description"),
+                "content_preview": content[:500] + "..." if len(content) > 500 else content,
+                "metadata": metadata,
+                "word_count": word_count,
+                "links_count": len(links),
+                "images_count": 0,  # 简化版不统计图片
+                "can_import": True,
+                "suggested_tags": suggested_tags[:5]  # 最多5个标签
+            }
+
+        except Exception as e:
+            return {
+                "url": url,
+                "can_import": False,
+                "error": str(e)
+            }
+
+    async def create_document_from_file(
+        self,
+        db: AsyncSession,
+        space_id: int,
+        file_path: Path,
+        user: User,
+        title: str | None = None,
+    ) -> Document:
+        """从文件创建文档记录，包含内容提取."""
+        try:
+            # 获取文件信息
+            file_ext = file_path.suffix.lower()
+            file_size = file_path.stat().st_size
+            filename = file_path.name
+
+            # 使用增强的内容提取
+            extraction_result = await self.content_service.extract_content_enhanced(file_path, file_ext)
+            content = extraction_result["text"]
+            metadata = extraction_result["metadata"]
+
+            # 添加提取信息到元数据
+            metadata["extraction_method"] = extraction_result["extraction_method"]
+            metadata["content_format"] = extraction_result["format"]
+            metadata["has_tables"] = extraction_result["has_tables"]
+            metadata["has_images"] = extraction_result["has_images"]
+            metadata["has_formulas"] = extraction_result["has_formulas"]
+
+            # 生成文件hash
+            file_hash = hashlib.sha256(content.encode()).hexdigest()
+
+            # 检查文档是否已存在
+            existing = await crud.crud_document.get_by_hash(
+                db, file_hash=file_hash, space_id=space_id
+            )
+            if existing:
+                return existing
+
+            # 创建文档schema
+            document_in = DocumentCreate(
+                filename=filename,
+                content_type=self._get_content_type(file_ext),
+                size=file_size,
+                space_id=space_id,
+                meta_data=metadata,
+            )
+
+            # 创建文档
+            document = await crud.crud_document.create(
+                db,
+                obj_in=document_in,
+                user_id=user.id,
+                file_path=f"spaces/{space_id}/documents/{file_hash}",
+                file_hash=file_hash,
+                original_filename=filename,
+                title=title or metadata.get("title", filename),
+                content=content[:1000],  # 存储前1000字符作为预览
+                processing_status="completed",
+                extraction_status="completed",
+                embedding_status="pending",
+            )
+
+            # 更新空间统计
+            await crud.crud_space.update_stats(
+                db, space_id=space_id, document_delta=1, size_delta=file_size
+            )
+
+            return document
+
+        except Exception as e:
+            raise Exception(f"创建文档失败: {str(e)}") from e
+
+    async def extract_document_content(
+        self,
+        file_path: Path,
+        file_ext: str | None = None,
+    ) -> str:
+        """提取文档内容."""
+        if not file_ext:
+            file_ext = file_path.suffix.lower()
+
+        return await self.content_service.extract_content(file_path, file_ext)
+
+    async def get_document_metadata(
+        self,
+        file_path: Path,
+    ) -> dict[str, Any]:
+        """获取文档元数据."""
+        return await self.content_service.get_document_metadata(file_path)
+
+    async def split_document_content(
+        self,
+        content: str,
+        chunk_size: int = 1000,
+        overlap: int = 100,
+    ) -> list[str]:
+        """将文档内容分割成块."""
+        return await self.content_service.split_document(content, chunk_size, overlap)
+
+    async def extract_keywords(
+        self,
+        content: str,
+        max_keywords: int = 10,
+    ) -> list[str]:
+        """提取关键词."""
+        return await self.content_service.extract_keywords(content, max_keywords)
+
+    async def summarize_content(
+        self,
+        content: str,
+        max_length: int = 200,
+    ) -> str:
+        """生成内容摘要."""
+        return await self.content_service.summarize_content(content, max_length)
+
+    def _get_content_type(self, file_ext: str) -> str:
+        """根据文件扩展名获取MIME类型."""
+        content_types = {
+            ".pdf": "application/pdf",
+            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".doc": "application/msword",
+            ".txt": "text/plain",
+            ".md": "text/markdown",
+            ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".ppt": "application/vnd.ms-powerpoint",
+        }
+        return content_types.get(file_ext.lower(), "application/octet-stream")
+
+
+# 创建全局实例
+document_service = DocumentService()

@@ -30,7 +30,7 @@ async def update_current_user(
     """更新当前用户信息."""
     # 检查用户名是否已被使用
     if user_update.username and user_update.username != current_user.username:
-        existing = await crud.user.get_by_username(db, username=user_update.username)
+        existing = await crud.crud_user.get_by_username(db, username=user_update.username)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -39,7 +39,7 @@ async def update_current_user(
 
     # 检查邮箱是否已被使用
     if user_update.email and user_update.email != current_user.email:
-        existing = await crud.user.get_by_email(db, email=user_update.email)
+        existing = await crud.crud_user.get_by_email(db, email=user_update.email)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -47,7 +47,7 @@ async def update_current_user(
             )
 
     # 更新用户信息
-    updated_user = await crud.user.update(db, db_obj=current_user, obj_in=user_update)
+    updated_user = await crud.crud_user.update(db, db_obj=current_user, obj_in=user_update)
     return UserResponse.model_validate(updated_user)
 
 
@@ -75,7 +75,7 @@ async def change_password(
 
     # 更新密码
     hashed_password = AuthService.get_password_hash(new_password)
-    await crud.user.update(
+    await crud.crud_user.update(
         db, db_obj=current_user, obj_in={"hashed_password": hashed_password}
     )
 
@@ -87,22 +87,22 @@ async def get_user_stats(
 ) -> dict:
     """获取用户统计信息."""
     # 获取空间数量
-    space_count = await crud.space.get_count(
-        db, query=crud.space.model.user_id == current_user.id
+    space_count = await crud.crud_space.get_count(
+        db, query=crud.crud_space.model.user_id == current_user.id
     )
 
     # 获取文档数量
-    document_count = await crud.document.get_count(
-        db, query=crud.document.model.user_id == current_user.id
+    document_count = await crud.crud_document.get_count(
+        db, query=crud.crud_document.model.user_id == current_user.id
     )
 
     # 获取对话数量
-    conversation_count = await crud.conversation.get_count(
-        db, query=crud.conversation.model.user_id == current_user.id
+    conversation_count = await crud.crud_conversation.get_count(
+        db, query=crud.crud_conversation.model.user_id == current_user.id
     )
 
     # 计算存储使用量
-    documents = await crud.document.get_user_documents(db, user_id=current_user.id)
+    documents = await crud.crud_document.get_user_documents(db, user_id=current_user.id)
     total_storage = sum(doc.file_size for doc in documents)
 
     return {
@@ -143,4 +143,4 @@ async def delete_account(
         )
 
     # 删除用户（会级联删除相关数据）
-    await crud.user.remove(db, id=current_user.id)
+    await crud.crud_user.remove(db, id=current_user.id)

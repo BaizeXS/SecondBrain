@@ -1,5 +1,7 @@
 """Document endpoints v2 - 使用服务层和CRUD层的完整版本."""
 
+from datetime import datetime
+from typing import Any, List
 
 from fastapi import (
     APIRouter,
@@ -24,7 +26,15 @@ from app.schemas.documents import (
     DocumentResponse,
     DocumentUpdate,
 )
-from app.services import DocumentService
+from app.schemas.web_import import (
+    URLImportRequest,
+    BatchURLImportRequest,
+    URLImportResponse,
+    WebSnapshotResponse,
+    URLAnalysisRequest,
+    URLAnalysisResponse,
+)
+from app.services import document_service
 
 router = APIRouter()
 
@@ -40,7 +50,7 @@ async def upload_document(
 ) -> DocumentResponse:
     """上传文档到知识空间."""
     # 检查空间权限
-    space = await crud.space.get(db, id=space_id)
+    space = await crud.crud_space.get(db, id=space_id)
     if not space:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -49,7 +59,7 @@ async def upload_document(
 
     if space.user_id != current_user.id:
         # 检查协作权限
-        access = await crud.space.get_user_access(
+        access = await crud.crud_space.get_user_access(
             db, space_id=space_id, user_id=current_user.id
         )
         if not access or not access.can_edit:
@@ -94,7 +104,7 @@ async def upload_document(
 
     try:
         # 创建文档（简化版本，直接存储内容）
-        document = await DocumentService.create_document(
+        document = await document_service.create_document(
             db,
             space_id=space_id,
             filename=file.filename or "未命名文档",
@@ -112,7 +122,7 @@ async def upload_document(
             if tag_list:
                 update_data["tags"] = tag_list
 
-            document = await crud.document.update(db, db_obj=document, obj_in=update_data)
+            document = await crud.crud_document.update(db, db_obj=document, obj_in=update_data)
 
         return DocumentResponse.model_validate(document)
 
@@ -136,7 +146,7 @@ async def get_documents(
     """获取文档列表."""
     if space_id:
         # 检查空间权限
-        space = await crud.space.get(db, id=space_id)
+        space = await crud.crud_space.get(db, id=space_id)
         if not space:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -145,7 +155,7 @@ async def get_documents(
 
         # 检查访问权限
         if space.user_id != current_user.id and not space.is_public:
-            access = await crud.space.get_user_access(
+            access = await crud.crud_space.get_user_access(
                 db, space_id=space_id, user_id=current_user.id
             )
             if not access:
@@ -156,16 +166,16 @@ async def get_documents(
 
         # 获取空间文档
         if search:
-            documents = await crud.document.search(
+            documents = await crud.crud_document.search(
                 db, space_id=space_id, query=search, skip=skip, limit=limit
             )
         else:
-            documents = await crud.document.get_by_space(
+            documents = await crud.crud_document.get_by_space(
                 db, space_id=space_id, skip=skip, limit=limit, status=status
             )
     else:
         # 获取用户的所有文档
-        documents = await crud.document.get_user_documents(
+        documents = await crud.crud_document.get_user_documents(
             db, user_id=current_user.id, skip=skip, limit=limit
         )
 
@@ -199,7 +209,7 @@ async def get_document(
     current_user: User = Depends(get_current_active_user),
 ) -> DocumentResponse:
     """获取文档详情."""
-    document = await DocumentService.get_document_by_id(db, document_id, current_user)
+    document = await document_service.get_document_by_id(db, document_id, current_user)
 
     if not document:
         raise HTTPException(
@@ -219,7 +229,7 @@ async def update_document(
 ) -> DocumentResponse:
     """更新文档信息."""
     # 获取文档
-    document = await DocumentService.get_document_by_id(db, document_id, current_user)
+    document = await document_service.get_document_by_id(db, document_id, current_user)
 
     if not document:
         raise HTTPException(
@@ -230,7 +240,7 @@ async def update_document(
     # 检查编辑权限
     space = await crud.space.get(db, id=document.space_id)
     if space and space.user_id != current_user.id:
-        access = await crud.space.get_user_access(
+        access = await crud.crud_space.get_user_access(
             db, space_id=document.space_id, user_id=current_user.id
         )
         if not access or not access.can_edit:
@@ -241,7 +251,7 @@ async def update_document(
 
     # 更新文档
     try:
-        updated_document = await crud.document.update(
+        updated_document = await crud.crud_document.update(
             db, db_obj=document, obj_in=document_data
         )
         return DocumentResponse.model_validate(updated_document)
@@ -260,7 +270,7 @@ async def delete_document(
 ) -> None:
     """删除文档."""
     # 获取文档
-    document = await DocumentService.get_document_by_id(db, document_id, current_user)
+    document = await document_service.get_document_by_id(db, document_id, current_user)
 
     if not document:
         raise HTTPException(
@@ -271,7 +281,7 @@ async def delete_document(
     # 检查删除权限
     space = await crud.space.get(db, id=document.space_id)
     if space and space.user_id != current_user.id:
-        access = await crud.space.get_user_access(
+        access = await crud.crud_space.get_user_access(
             db, space_id=document.space_id, user_id=current_user.id
         )
         if not access or not access.can_delete:
@@ -282,7 +292,7 @@ async def delete_document(
 
     # 删除文档
     try:
-        await DocumentService.delete_document(db, document)
+        await document_service.delete_document(db, document)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -298,7 +308,7 @@ async def download_document(
 ) -> FileResponse:
     """下载文档文件."""
     # 获取文档
-    document = await DocumentService.get_document_by_id(db, document_id, current_user)
+    document = await document_service.get_document_by_id(db, document_id, current_user)
 
     if not document:
         raise HTTPException(
@@ -326,3 +336,317 @@ async def download_document(
         filename=document.filename,
         media_type=document.content_type,
     )
+
+
+@router.get("/{document_id}/preview")
+async def get_document_preview(
+    document_id: int,
+    page: int | None = Query(None, ge=1, description="PDF页码"),
+    format: str = Query("html", description="预览格式: html/text/json"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, Any]:
+    """获取文档预览内容."""
+    # 获取文档
+    document = await crud.crud_document.get(db, id=document_id)
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="文档不存在",
+        )
+    
+    # 检查权限
+    if document.user_id != current_user.id:
+        # 检查空间权限
+        if document.space_id:
+            space = await crud.crud_space.get(db, id=document.space_id)
+            if not space or (not space.is_public and space.user_id != current_user.id):
+                # 检查协作权限
+                access = await crud.crud_space.get_user_access(
+                    db, space_id=document.space_id, user_id=current_user.id
+                )
+                if not access:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="无权访问此文档",
+                    )
+    
+    # 根据文档类型返回预览
+    if document.content_type and "pdf" in document.content_type.lower():
+        # PDF文档
+        return {
+            "type": "pdf",
+            "filename": document.filename,
+            "title": document.title,
+            "file_url": document.file_url or f"/api/v1/documents/{document_id}/download",
+            "page_count": document.meta_data.get("page_count") if document.meta_data else None,
+            "current_page": page,
+            "content": document.content if page == 1 else None,  # 第一页返回提取的文本
+        }
+    elif document.content_type and any(img in document.content_type.lower() for img in ["image", "jpg", "jpeg", "png", "gif"]):
+        # 图片文档
+        return {
+            "type": "image",
+            "filename": document.filename,
+            "title": document.title,
+            "file_url": document.file_url or f"/api/v1/documents/{document_id}/download",
+            "width": document.meta_data.get("width") if document.meta_data else None,
+            "height": document.meta_data.get("height") if document.meta_data else None,
+        }
+    elif document.content:
+        # 文本类文档
+        content = document.content
+        
+        # 根据格式返回
+        if format == "html":
+            # 简单的Markdown到HTML转换
+            try:
+                import markdown
+                html_content = markdown.markdown(content, extensions=['extra', 'codehilite'])
+            except:
+                html_content = f"<pre>{content}</pre>"
+            
+            return {
+                "type": "text",
+                "format": "html",
+                "filename": document.filename,
+                "title": document.title,
+                "content": html_content,
+                "language": document.language,
+            }
+        elif format == "json":
+            return {
+                "type": "text",
+                "format": "json",
+                "filename": document.filename,
+                "title": document.title,
+                "content": content,
+                "summary": document.summary,
+                "language": document.language,
+                "metadata": document.meta_data,
+            }
+        else:  # text
+            return {
+                "type": "text",
+                "format": "text",
+                "filename": document.filename,
+                "title": document.title,
+                "content": content,
+                "language": document.language,
+            }
+    else:
+        # 二进制文件或未处理的文档
+        return {
+            "type": "binary",
+            "filename": document.filename,
+            "title": document.title,
+            "file_url": document.file_url or f"/api/v1/documents/{document_id}/download",
+            "content_type": document.content_type,
+            "file_size": document.file_size,
+            "message": "此文档类型不支持预览，请下载查看",
+        }
+
+
+@router.get("/{document_id}/content")
+async def get_document_content(
+    document_id: int,
+    start: int = Query(0, ge=0, description="起始位置"),
+    length: int = Query(5000, ge=100, le=50000, description="内容长度"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, Any]:
+    """获取文档的文本内容（支持分页）."""
+    # 获取文档
+    document = await crud.crud_document.get(db, id=document_id)
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="文档不存在",
+        )
+    
+    # 检查权限（同上）
+    if document.user_id != current_user.id:
+        if document.space_id:
+            space = await crud.crud_space.get(db, id=document.space_id)
+            if not space or (not space.is_public and space.user_id != current_user.id):
+                access = await crud.crud_space.get_user_access(
+                    db, space_id=document.space_id, user_id=current_user.id
+                )
+                if not access:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="无权访问此文档",
+                    )
+    
+    if not document.content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="此文档没有可用的文本内容",
+        )
+    
+    # 获取内容片段
+    total_length = len(document.content)
+    end = min(start + length, total_length)
+    content_slice = document.content[start:end]
+    
+    return {
+        "document_id": document_id,
+        "title": document.title,
+        "content": content_slice,
+        "start": start,
+        "end": end,
+        "total_length": total_length,
+        "has_more": end < total_length,
+    }
+
+
+@router.post("/import-url", response_model=URLImportResponse, status_code=status.HTTP_201_CREATED)
+async def import_url(
+    import_data: URLImportRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> URLImportResponse:
+    """从URL导入网页内容到知识空间."""
+    # 检查空间权限
+    space = await crud.space.get(db, id=import_data.space_id)
+    if not space:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="空间不存在",
+        )
+    
+    if space.user_id != current_user.id:
+        # 检查协作权限
+        access = await crud.crud_space.get_user_access(
+            db, space_id=import_data.space_id, user_id=current_user.id
+        )
+        if not access or not access.can_edit:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权在此空间导入文档",
+            )
+    
+    # 导入网页
+    result = await document_service.import_from_url(
+        db,
+        url=str(import_data.url),
+        space_id=import_data.space_id,
+        user=current_user,
+        title=import_data.title,
+        tags=import_data.tags,
+        save_snapshot=import_data.save_snapshot,
+    )
+    
+    if result["status"] == "error":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error", "导入失败"),
+        )
+    
+    # 获取文档详情
+    document = await crud.crud_document.get(db, id=result["document_id"])
+    
+    return URLImportResponse(
+        document_id=document.id,
+        url=str(import_data.url),
+        title=document.title,
+        status="success",
+        metadata=result.get("metadata"),
+        created_at=document.created_at,
+    )
+
+
+@router.post("/batch-import-urls", response_model=List[URLImportResponse])
+async def batch_import_urls(
+    import_data: BatchURLImportRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> List[URLImportResponse]:
+    """批量从URL导入网页内容."""
+    # 检查空间权限（同上）
+    space = await crud.space.get(db, id=import_data.space_id)
+    if not space:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="空间不存在",
+        )
+    
+    if space.user_id != current_user.id:
+        access = await crud.crud_space.get_user_access(
+            db, space_id=import_data.space_id, user_id=current_user.id
+        )
+        if not access or not access.can_edit:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权在此空间导入文档",
+            )
+    
+    # 批量导入
+    results = await document_service.batch_import_urls(
+        db,
+        urls=[str(url) for url in import_data.urls],
+        space_id=import_data.space_id,
+        user=current_user,
+        tags=import_data.tags,
+        save_snapshot=import_data.save_snapshot,
+    )
+    
+    # 构建响应
+    responses = []
+    for result in results:
+        if result["status"] == "success":
+            document = await crud.crud_document.get(db, id=result["document_id"])
+            responses.append(URLImportResponse(
+                document_id=document.id,
+                url=result["url"],
+                title=document.title,
+                status="success",
+                metadata=result.get("metadata"),
+                created_at=document.created_at,
+            ))
+        else:
+            responses.append(URLImportResponse(
+                document_id=0,
+                url=result["url"],
+                title="",
+                status="error",
+                error=result.get("error"),
+                created_at=datetime.now(),
+            ))
+    
+    return responses
+
+
+@router.get("/{document_id}/snapshot", response_model=WebSnapshotResponse)
+async def get_web_snapshot(
+    document_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> WebSnapshotResponse:
+    """获取网页文档的快照."""
+    snapshot = await document_service.get_web_snapshot(db, document_id, current_user)
+    
+    if not snapshot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="快照不存在或该文档不是网页文档",
+        )
+    
+    return WebSnapshotResponse(**snapshot)
+
+
+@router.post("/analyze-url", response_model=URLAnalysisResponse)
+async def analyze_url(
+    analysis_data: URLAnalysisRequest,
+    current_user: User = Depends(get_current_active_user),
+) -> URLAnalysisResponse:
+    """分析URL内容（不保存）."""
+    analysis = await document_service.analyze_url(str(analysis_data.url))
+    
+    if not analysis.get("can_import"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=analysis.get("error", "无法分析该URL"),
+        )
+    
+    return URLAnalysisResponse(**analysis)

@@ -1,7 +1,7 @@
 """Vector storage service using Qdrant."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -11,18 +11,17 @@ logger = logging.getLogger(__name__)
 class VectorService:
     """向量存储服务."""
 
-    def __init__(self, qdrant_url: str = "http://localhost:6333"):
+    def __init__(self, qdrant_url: str = "http://localhost:6333") -> None:
         """初始化向量服务."""
         self.qdrant_url = qdrant_url
-        self.client = None
-        self.embedding_model = None
+        self.client: Any | None = None  # QdrantClient
+        self.embedding_model: Any | None = None  # SentenceTransformer
         self.collection_name = "documents"
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """初始化连接."""
         try:
             from qdrant_client import QdrantClient
-            from qdrant_client.models import Distance, PointStruct, VectorParams
 
             self.client = QdrantClient(url=self.qdrant_url)
 
@@ -44,12 +43,15 @@ class VectorService:
             logger.error(f"向量服务初始化失败: {str(e)}")
             raise
 
-    async def _create_collection_if_not_exists(self):
+    async def _create_collection_if_not_exists(self) -> None:
         """创建集合（如果不存在）."""
         from qdrant_client.models import Distance, VectorParams
 
         try:
             # 检查集合是否存在
+            if not self.client:
+                raise Exception("客户端未初始化")
+
             collections = self.client.get_collections()
             collection_names = [col.name for col in collections.collections]
 
@@ -70,7 +72,7 @@ class VectorService:
             logger.error(f"创建集合失败: {str(e)}")
             raise
 
-    async def _initialize_embedding_model(self):
+    async def _initialize_embedding_model(self) -> None:
         """初始化嵌入模型."""
         try:
             from sentence_transformers import SentenceTransformer
@@ -93,7 +95,7 @@ class VectorService:
         self,
         document_id: int,
         content: str,
-        metadata: Dict[str, Any],
+        metadata: dict[str, Any],
         chunk_size: int = 1000,
         overlap: int = 100,
     ) -> bool:
@@ -108,12 +110,12 @@ class VectorService:
             # 生成嵌入
             embeddings = await self._generate_embeddings(chunks)
 
-            if not embeddings:
+            if embeddings is None or len(embeddings) == 0:
                 return False
 
             # 准备点数据
             points = []
-            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
                 point_id = f"{document_id}_{i}"
 
                 point_metadata = {
@@ -159,8 +161,8 @@ class VectorService:
         query: str,
         limit: int = 10,
         score_threshold: float = 0.5,
-        filter_conditions: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        filter_conditions: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """搜索相似文档."""
         try:
             if not self.client or not query:
@@ -168,7 +170,7 @@ class VectorService:
 
             # 生成查询嵌入
             query_embedding = await self._generate_embeddings([query])
-            if not query_embedding:
+            if query_embedding is None or len(query_embedding) == 0:
                 return []
 
             # 构建过滤条件
@@ -176,7 +178,7 @@ class VectorService:
             if filter_conditions:
                 from qdrant_client.models import FieldCondition, Filter, MatchValue
 
-                conditions = []
+                conditions: list[Any] = []  # FieldCondition
                 for field, value in filter_conditions.items():
                     conditions.append(
                         FieldCondition(key=field, match=MatchValue(value=value))
@@ -247,7 +249,7 @@ class VectorService:
             logger.error(f"删除文档向量失败: {str(e)}")
             return False
 
-    async def get_document_stats(self, document_id: int) -> Dict[str, Any]:
+    async def get_document_stats(self, document_id: int) -> dict[str, Any]:
         """获取文档向量统计信息."""
         try:
             if not self.client:
@@ -283,7 +285,7 @@ class VectorService:
             logger.error(f"获取文档统计失败: {str(e)}")
             return {}
 
-    async def _split_text(self, text: str, chunk_size: int, overlap: int) -> List[str]:
+    async def _split_text(self, text: str, chunk_size: int, overlap: int) -> list[str]:
         """分割文本."""
         if not text:
             return []
@@ -310,7 +312,7 @@ class VectorService:
 
         return chunks
 
-    async def _generate_embeddings(self, texts: List[str]) -> Optional[List]:
+    async def _generate_embeddings(self, texts: list[str]) -> list[Any] | None:
         """生成文本嵌入."""
         try:
             if not texts:
@@ -328,7 +330,7 @@ class VectorService:
             logger.error(f"生成嵌入失败: {str(e)}")
             return None
 
-    async def _simple_text_embedding(self, texts: List[str]) -> List[List[float]]:
+    async def _simple_text_embedding(self, texts: list[str]) -> list[list[float]]:
         """简单的文本嵌入（基于字符频率）."""
         try:
             import hashlib
@@ -362,7 +364,7 @@ class VectorService:
             logger.error(f"简单嵌入生成失败: {str(e)}")
             return [[0.0] * 384 for _ in texts]
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """健康检查."""
         try:
             if not self.client:
@@ -393,7 +395,7 @@ class VectorService:
 
     async def similarity_search_with_space(
         self, query: str, space_id: int, limit: int = 10, score_threshold: float = 0.5
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """在指定空间中搜索相似文档."""
         filter_conditions = {"space_id": space_id}
         return await self.search_documents(
@@ -403,7 +405,7 @@ class VectorService:
             filter_conditions=filter_conditions,
         )
 
-    async def get_space_stats(self, space_id: int) -> Dict[str, Any]:
+    async def get_space_stats(self, space_id: int) -> dict[str, Any]:
         """获取空间向量统计."""
         try:
             if not self.client:

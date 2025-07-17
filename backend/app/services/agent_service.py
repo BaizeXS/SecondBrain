@@ -2,24 +2,41 @@
 
 import logging
 import time
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from app.schemas.agents import AgentTemplate
 from app.services.ai_service import AIService
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class AgentTemplate:
+    """Agent template for service usage."""
+    id: str
+    name: str
+    description: str
+    type: str
+    prompt: str
+    model: str
+    temperature: float
+    max_tokens: int
+    tools: list[str]
+    settings: dict[str, Any]
+    tags: list[str]
+    category: str
+
+
 class AgentService:
     """AI代理执行服务."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化代理服务."""
         self.ai_service = AIService()
         self.agent_templates = self._load_agent_templates()
 
-    def _load_agent_templates(self) -> List[AgentTemplate]:
+    def _load_agent_templates(self) -> list[AgentTemplate]:
         """加载代理模板."""
         templates = [
             AgentTemplate(
@@ -146,11 +163,11 @@ class AgentService:
 
         return templates
 
-    async def get_agent_templates(self) -> List[AgentTemplate]:
+    async def get_agent_templates(self) -> list[AgentTemplate]:
         """获取所有代理模板."""
         return self.agent_templates
 
-    async def get_agent_template(self, template_id: str) -> Optional[AgentTemplate]:
+    async def get_agent_template(self, template_id: str) -> AgentTemplate | None:
         """获取指定的代理模板."""
         for template in self.agent_templates:
             if template.id == template_id:
@@ -158,8 +175,8 @@ class AgentService:
         return None
 
     async def execute_agent(
-        self, agent, input_data: Dict[str, Any], parameters: Dict[str, Any], user
-    ) -> Dict[str, Any]:
+        self, agent: AgentTemplate, input_data: dict[str, Any], parameters: dict[str, Any], user: Any
+    ) -> dict[str, Any]:
         """执行AI代理."""
         start_time = time.time()
 
@@ -191,7 +208,7 @@ class AgentService:
             )
 
             # 处理输出
-            output_data = self._format_output_data(response.content, agent.type)
+            output_data = self._format_output_data(response, agent.type)
 
             processing_time = time.time() - start_time
 
@@ -201,8 +218,8 @@ class AgentService:
                 "processing_time": processing_time,
                 "completed_at": datetime.utcnow(),
                 "metadata": {
-                    "model_used": response.model,
-                    "token_count": response.token_count,
+                    "model_used": model,
+                    "token_count": getattr(response, 'token_count', 0),
                     "agent_type": agent.type,
                     "agent_tools": agent.tools,
                 },
@@ -219,7 +236,7 @@ class AgentService:
                 "completed_at": datetime.utcnow(),
             }
 
-    async def execute_agent_async(self, agent, execution, db):
+    async def execute_agent_async(self, agent: AgentTemplate, execution: Any, db: Any) -> None:
         """异步执行代理（后台任务）."""
         try:
             # 获取输入数据
@@ -252,7 +269,7 @@ class AgentService:
 
             await db.commit()
 
-    def _format_input_message(self, input_data: Dict[str, Any], agent_type: str) -> str:
+    def _format_input_message(self, input_data: dict[str, Any], agent_type: str) -> str:
         """格式化输入消息."""
         if "message" in input_data:
             base_message = input_data["message"]
@@ -296,9 +313,9 @@ class AgentService:
 
         return base_message
 
-    def _format_output_data(self, content: str, agent_type: str) -> Dict[str, Any]:
+    def _format_output_data(self, content: str, agent_type: str) -> dict[str, Any]:
         """格式化输出数据."""
-        base_output = {
+        base_output: dict[str, Any] = {
             "content": content,
             "type": agent_type,
             "generated_at": datetime.utcnow().isoformat(),
@@ -306,53 +323,33 @@ class AgentService:
 
         # 尝试提取结构化信息
         if agent_type == "analysis":
-            base_output.update(
-                {
-                    "analysis_type": "general",
-                    "insights": self._extract_insights(content),
-                    "recommendations": self._extract_recommendations(content),
-                }
-            )
+            base_output["analysis_type"] = "general"
+            base_output["insights"] = self._extract_insights(content)
+            base_output["recommendations"] = self._extract_recommendations(content)
 
         elif agent_type == "writing":
-            base_output.update(
-                {
-                    "word_count": len(content.split()),
-                    "writing_style": "professional",
-                    "content_type": "article",
-                }
-            )
+            base_output["word_count"] = len(content.split())
+            base_output["writing_style"] = "professional"
+            base_output["content_type"] = "article"
 
         elif agent_type == "research":
-            base_output.update(
-                {
-                    "research_depth": "comprehensive",
-                    "sources_mentioned": self._extract_sources(content),
-                    "key_findings": self._extract_key_findings(content),
-                }
-            )
+            base_output["research_depth"] = "comprehensive"
+            base_output["sources_mentioned"] = self._extract_sources(content)
+            base_output["key_findings"] = self._extract_key_findings(content)
 
         elif agent_type == "development":
-            base_output.update(
-                {
-                    "review_type": "code_quality",
-                    "issues_found": self._extract_issues(content),
-                    "suggestions": self._extract_suggestions(content),
-                }
-            )
+            base_output["review_type"] = "code_quality"
+            base_output["issues_found"] = self._extract_issues(content)
+            base_output["suggestions"] = self._extract_suggestions(content)
 
         elif agent_type == "support":
-            base_output.update(
-                {
-                    "support_type": "general",
-                    "resolution_provided": True,
-                    "follow_up_needed": self._check_follow_up_needed(content),
-                }
-            )
+            base_output["support_type"] = "general"
+            base_output["resolution_provided"] = True
+            base_output["follow_up_needed"] = self._check_follow_up_needed(content)
 
         return base_output
 
-    def _extract_insights(self, content: str) -> List[str]:
+    def _extract_insights(self, content: str) -> list[str]:
         """提取分析洞察."""
         # 简化的洞察提取逻辑
         insights = []
@@ -364,7 +361,7 @@ class AgentService:
                 insights.append(line.strip())
         return insights[:5]  # 最多返回5个洞察
 
-    def _extract_recommendations(self, content: str) -> List[str]:
+    def _extract_recommendations(self, content: str) -> list[str]:
         """提取建议."""
         recommendations = []
         lines = content.split("\n")
@@ -375,7 +372,7 @@ class AgentService:
                 recommendations.append(line.strip())
         return recommendations[:5]
 
-    def _extract_sources(self, content: str) -> List[str]:
+    def _extract_sources(self, content: str) -> list[str]:
         """提取来源."""
         # 简化的来源提取逻辑
         import re
@@ -383,7 +380,7 @@ class AgentService:
         sources = re.findall(r"https?://[^\s]+", content)
         return sources[:10]  # 最多返回10个来源
 
-    def _extract_key_findings(self, content: str) -> List[str]:
+    def _extract_key_findings(self, content: str) -> list[str]:
         """提取关键发现."""
         findings = []
         lines = content.split("\n")
@@ -394,7 +391,7 @@ class AgentService:
                 findings.append(line.strip())
         return findings[:5]
 
-    def _extract_issues(self, content: str) -> List[str]:
+    def _extract_issues(self, content: str) -> list[str]:
         """提取代码问题."""
         issues = []
         lines = content.split("\n")
@@ -405,7 +402,7 @@ class AgentService:
                 issues.append(line.strip())
         return issues[:10]
 
-    def _extract_suggestions(self, content: str) -> List[str]:
+    def _extract_suggestions(self, content: str) -> list[str]:
         """提取改进建议."""
         suggestions = []
         lines = content.split("\n")
@@ -422,8 +419,8 @@ class AgentService:
         return any(keyword in content.lower() for keyword in follow_up_keywords)
 
     async def validate_agent_config(
-        self, agent_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, agent_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """验证代理配置."""
         issues = []
 
@@ -433,10 +430,11 @@ class AgentService:
             if not agent_config.get(field):
                 issues.append(f"缺少必需字段: {field}")
 
-        # 检查模型有效性
+        # 检查模型有效性（只有在模型存在时才检查）
         valid_models = ["gpt-4", "gpt-3.5-turbo", "claude-3", "gemini-pro"]
-        if agent_config.get("model") not in valid_models:
-            issues.append(f"无效的模型: {agent_config.get('model')}")
+        model = agent_config.get("model")
+        if model and model not in valid_models:
+            issues.append(f"无效的模型: {model}")
 
         # 检查温度参数
         temperature = agent_config.get("temperature", 0.7)
@@ -450,7 +448,7 @@ class AgentService:
 
         return {"valid": len(issues) == 0, "issues": issues}
 
-    async def get_agent_capabilities(self, agent_type: str) -> Dict[str, Any]:
+    async def get_agent_capabilities(self, agent_type: str) -> dict[str, Any]:
         """获取代理类型的能力描述."""
         capabilities = {
             "analysis": {
@@ -494,3 +492,7 @@ class AgentService:
                 "tools": ["general"],
             },
         )
+
+
+# 创建全局实例
+agent_service = AgentService()

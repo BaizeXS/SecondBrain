@@ -68,7 +68,7 @@ async def get_spaces(
     """获取用户的知识空间列表."""
     # 获取用户空间
     if include_public:
-        spaces = await crud.space.get_user_spaces(
+        spaces = await crud.crud_space.get_user_spaces(
             db,
             user_id=current_user.id,
             skip=skip,
@@ -127,7 +127,7 @@ async def update_space(
 ) -> SpaceResponse:
     """更新知识空间信息."""
     # 获取空间
-    space = await crud.space.get(db, id=space_id)
+    space = await crud.crud_space.get(db, id=space_id)
 
     if not space:
         raise HTTPException(
@@ -138,7 +138,7 @@ async def update_space(
     # 检查权限
     if space.user_id != current_user.id:
         # 检查是否有编辑权限
-        access = await crud.space.get_user_access(
+        access = await crud.crud_space.get_user_access(
             db, space_id=space_id, user_id=current_user.id
         )
         if not access or not access.can_edit:
@@ -167,7 +167,7 @@ async def delete_space(
 ) -> None:
     """删除知识空间."""
     # 获取空间
-    space = await crud.space.get(db, id=space_id)
+    space = await crud.crud_space.get(db, id=space_id)
 
     if not space:
         raise HTTPException(
@@ -184,7 +184,7 @@ async def delete_space(
 
     # 检查是否有关联数据
     if not force:
-        documents = await crud.document.get_by_space(db, space_id=space_id, limit=1)
+        documents = await crud.crud_document.get_by_space(db, space_id=space_id, limit=1)
         if documents:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
