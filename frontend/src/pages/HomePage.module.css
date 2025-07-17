@@ -1,0 +1,301 @@
+/* src/pages/HomePage.module.css */
+.homePageLayout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.chatAreaWrapper {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 当聊天未开始时的样式 (初始居中布局) */
+.chatAreaWrapperInitial {
+  justify-content: center;
+}
+
+/* 聊天激活状态：消息区在上，交互区固定在下 */
+.chatAreaWrapperActive {
+  justify-content: space-between;
+}
+
+/* 初始状态下的元素 */
+.chatAreaWrapperInitial .initialPromptHeader,
+.chatAreaWrapperInitial .interactionArea {
+    width: 100%;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.initialPromptHeader {
+  text-align: center;
+  padding: 0 24px;
+  width: 100%;
+  max-width: 700px;
+  margin-bottom: 24px;
+}
+.mainPromptText {
+  font-size: 1.8rem;
+  font-weight: 500;
+  color: var(--text-color, #333);
+}
+
+/* 聊天消息显示区域 */
+.chatMessagesArea {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 16px;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto 16px auto;
+  box-sizing: border-box;
+}
+.hiddenOnInitial {
+  flex-grow: 0 !important;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.3s, visibility 0.3s;
+}
+.chatAreaWrapperActive .chatMessagesArea:not(.hiddenOnInitial) {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* 单个消息条目的外层容器 */
+.chatMessage {
+  display: flex; /* 用于左右对齐内部的气泡 */
+  margin-bottom: 12px;
+  max-width: 80%; /* 限制消息的最大宽度 */
+  word-wrap: break-word; /* 允许长单词换行 */
+}
+
+/* 实际的气泡体 */
+.messageBubbleContent {
+  padding: 10px 15px;
+  border-radius: 18px; /* 基本圆角 */
+  line-height: 1.45;
+  font-size: 0.9rem;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+.messageBubbleContent p {
+  margin: 0;
+  white-space: pre-wrap; /* 保持换行符 */
+}
+
+/* 用户消息的样式 */
+.userMessage {
+  justify-content: flex-end; /* 使气泡在容器内靠右 */
+  margin-left: auto;     /* 使整个消息条目在聊天区域靠右 */
+}
+.userMessage .messageBubbleContent {
+  background-color: #a2cbf7; /* <<< 你想要的淡蓝色 */
+  color: #1c3c5a; /* 可以用深蓝色字体搭配浅蓝背景 */
+  border-bottom-right-radius: 5px; /* 形成小尖角 */
+}
+/* 如果需要在用户气泡中显示文件链接，可以设置特定颜色 */
+.userMessage .messageBubbleContent a { /* 假设 MessageFileAttachments 内的链接是 <a> */
+    color: #f0f8ff;
+}
+
+
+/* AI 消息的样式 */
+.aiMessage {
+  justify-content: flex-start; /* 使气泡在容器内靠左 */
+  margin-right: auto;      /* 使整个消息条目在聊天区域靠左 */
+}
+.aiMessage .messageBubbleContent {
+  background-color: #e9ecef; /* <<< 你想要的灰色 */
+  color: #343a40; /* 深灰色字体 */
+  border-bottom-left-radius: 5px; /* 形成小尖角 */
+}
+/* AI 气泡中的链接颜色 */
+.aiMessage .messageBubbleContent a {
+    color: var(--primary-color, #007bff);
+}
+
+
+/* 交互区域：包含 Agent 按钮和整个输入框部分 */
+.interactionArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0 16px 24px 16px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+/* Agent 按钮容器 - 核心修改区域 */
+/* 外层容器：负责滚动、居中、和遮罩 */
+.agentButtons {
+  display: flex;
+  justify-content: center; /* <<< 让唯一的子元素 (wrapper) 居中 */
+  width: 100%;
+  max-width: 700px;
+  overflow-x: auto;      /* <<< 滚动条在这里 */
+  position: relative;
+  margin-bottom: 16px;
+  padding: 5px 0;        /* 垂直 padding */
+
+  /* 隐藏滚动条 */
+  scrollbar-width: none; /* Firefox */
+}
+.agentButtons::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+/* 遮罩效果仍然应用在外层容器上 */
+.agentButtons {
+   -webkit-mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent);
+   mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent);
+}
+
+
+/* <<< 新增：内层包装器，负责按钮的排列和间距 >>> */
+.agentButtonsWrapper {
+  display: inline-flex; /* 或者 flex。inline-flex 使其宽度由内容决定，更适合被外层居中 */
+  flex-direction: row;
+  justify-content: flex-start; /* <<< 按钮总是从左侧开始排列 */
+  flex-wrap: nowrap;
+  gap: 10px;
+  /* 左右 padding 应该放在这里，以确保按钮和遮罩之间有空隙 */
+  padding: 0 15px;
+}
+
+
+/* Agent 按钮本身样式 (保持不变) */
+.agentButton {
+  padding: 7px 18px;
+  border: 1px solid #d1d5db;
+  border-radius: 20px;
+  background-color: #fff;
+  color: #4b5563;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  flex-shrink: 0; /* <<< 确保按钮不被压缩 */
+}
+.agentButton:hover {
+  background-color: #f8f9fa;
+  border-color: #adb5bd;
+}
+.agentButtonActive {
+  font-weight: 600;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  /* 背景色和文字颜色由 JS 的 style prop 控制 */
+}
+.agentIcon {
+  margin-right: 7px;
+  font-size: 1.1em;
+}
+
+
+/* --- ChatInputInterface 使用的样式 (如果它不使用自己的 CSS 模块) --- */
+/* 如果 ChatInputInterface 有自己的 .module.css，这些可以移除 */
+
+.chatInputSection {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 700px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.selectedFilesPreviewArea {
+  width: 100%;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color, #ccc) transparent;
+}
+.selectedFilesPreviewArea::-webkit-scrollbar { height: 6px; }
+.selectedFilesPreviewArea::-webkit-scrollbar-track { background: transparent; }
+.selectedFilesPreviewArea::-webkit-scrollbar-thumb { background-color: var(--border-color-light, #e0e0e0); border-radius: 10px; }
+.selectedFilesPreviewArea::-webkit-scrollbar-thumb:hover { background-color: var(--border-color, #ccc); }
+
+.filePreviewCard {
+  background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px;
+  padding: 10px 12px; display: flex; align-items: center; position: relative;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: auto; min-width: 200px;
+  max-width: 280px; flex-shrink: 0;
+}
+.filePreviewIcon { font-size: 1.8rem; color: var(--primary-color, #007bff); margin-right: 12px; flex-shrink: 0; }
+.filePreviewInfo { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+.filePreviewName { font-weight: 500; font-size: 0.9rem; color: var(--text-color, #333); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.filePreviewMeta { font-size: 0.75rem; color: var(--text-color-light, #666); }
+.filePreviewRemoveBtn {
+  background: none; border: none; color: var(--text-color-light, #888);
+  font-size: 1.1rem; padding: 4px; cursor: pointer; position: absolute;
+  top: 8px; right: 8px; display: none; line-height: 1; border-radius: 50%;
+}
+.filePreviewCard:hover .filePreviewRemoveBtn { display: block; }
+.filePreviewRemoveBtn:hover { color: var(--danger-color, #dc3545); background-color: #f0f0f0; }
+
+.chatInputWrapper {
+  display: flex; align-items: flex-start; border: 1px solid var(--border-color, #ccc);
+  border-radius: 12px; padding: 8px 10px; background-color: #fff;
+  margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.chatIconButtonTopLeft {
+  background: none; border: none; padding: 8px; margin-right: 8px;
+  color: var(--text-color-light, #777); font-size: 1.3rem; cursor: pointer;
+  align-self: flex-start; margin-top: 2px;
+}
+.chatIconButtonTopLeft:hover { color: var(--primary-color, #007bff); }
+
+.chatTextarea {
+  flex-grow: 1; border: none; outline: none; padding: 8px 5px;
+  font-size: 1rem; resize: none; min-height: 24px; max-height: 150px;
+  overflow-y: hidden; line-height: 1.5; box-sizing: border-box; background-color: transparent;
+}
+
+.chatIconButton {
+  background: none; border: none; padding: 8px; margin: 0 5px;
+  color: var(--text-color-light, #777); font-size: 1.3rem; cursor: pointer;
+  display: flex; align-items: center;
+}
+.chatIconButton:hover { color: var(--primary-color, #007bff); }
+
+.sendButton {
+  margin-left: 8px; color: var(--primary-color, #007bff) !important;
+  font-size: 1.5rem !important; align-self: flex-end; margin-bottom: 2px;
+}
+.sendButton:hover { color: #0056b3 !important; }
+
+.chatInputActions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.actionGroupLeft, .actionGroupRight { display: flex; align-items: center; gap: 10px; }
+.modelSelector {
+  padding: 6px 10px; border: 1px solid var(--border-color, #ccc); border-radius: 4px;
+  font-size: 0.9rem; background-color: #fff; min-width: 120px;
+}
+.inputActionButton {
+  background: none; border: 1px solid transparent; padding: 8px;
+  color: var(--text-color-light, #666); font-size: 1.2rem; cursor: pointer;
+  border-radius: 4px; display: flex; align-items: center;
+}
+.inputActionButton:hover { background-color: var(--hover-background-color, #f0f0f0); color: var(--text-color, #333); }
+.deepSearchActive { color: var(--primary-color, #007bff) !important; background-color: #e6f7ff !important; }

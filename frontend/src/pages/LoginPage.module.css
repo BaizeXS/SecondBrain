@@ -1,0 +1,398 @@
+/* src/pages/LoginPage.module.css */
+
+.pageWrapper {
+    display: flex;
+    flex-direction: column; /* 页眉、主内容、页脚垂直排列 */
+    min-height: 100vh;
+    background-color: var(--app-background-color, #f4f7f9); /* 整体页面背景 */
+  }
+  
+  /* ------------------ Page Header ------------------ */
+  .pageHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 40px; /* 页眉内边距 */
+    background-color: #fff; /* 页眉背景色 */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    flex-shrink: 0; /* 防止页眉被压缩 */
+    /* position: fixed; /* 如果需要固定页眉 */
+    /* top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000; */
+  }
+  
+  .logoContainer {
+    display: flex;
+    align-items: center;
+  }
+  
+  .appLogoIcon {
+    height: 30px; /* 根据你的 logo 调整 */
+    margin-right: 10px;
+  }
+  
+  .appNameGlobal {
+    font-size: 1.5rem; /* 应用名称字号 */
+    font-weight: 600;
+    color: var(--text-color, #333);
+  }
+  
+  .languageButton {
+    display: flex;
+    align-items: center;
+    background: none;
+    border: 1px solid var(--border-color, #ddd);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-color-light, #555);
+  }
+  .languageButton:hover {
+    background-color: var(--hover-background-color, #f0f0f0);
+  }
+  .languageIcon {
+    margin-right: 6px;
+    font-size: 1.1em;
+  }
+  
+  
+  /* ------------------ Main Login Page Container (Flex for two panels) ------------------ */
+  .loginPageContainer {
+    display: flex;
+    flex-grow: 1; /* 主内容区占据剩余空间 */
+    width: 100%;
+    /* margin-top: var(--header-height); /* 如果页眉是 fixed 定位 */
+  }
+  
+  /* ------------------ Left Panel ------------------ */
+  .leftPanel {
+    flex: 1; /* 左侧栏占据可用空间的一半或按比例 */
+    /* flex-basis: 55%; */ /* 或者给一个基础宽度 */
+    
+    background-color: #ffffff;  /* 示例浅蓝色背景 */
+    background-size: cover;
+    padding: 50px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* 垂直居中内容 */
+    align-items: flex-start; /* 左对齐内容 */
+    color: #2c3e50; /* 左侧栏文字颜色 */
+    position: relative; /* 如果有绝对定位的装饰元素 */
+  }
+  
+  .panelImage {
+    width: 100%;
+    max-width: 600px; /* 图片最大宽度 */
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+  }
+  
+  .leftPanelTitle {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 15px;
+    line-height: 1.3;
+  }
+  
+  .leftPanelText {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: #34495e; /* 比标题浅一点的颜色 */
+    max-width: 400px; /* 限制文本宽度，使其更易读 */
+  }
+  
+  /* ------------------ Right Panel (Login Form) ------------------ */
+  .rightPanel {
+    flex: 1; /* 右侧栏占据另一半或按比例 */
+    /* flex-basis: 45%; */
+    background-color: #fff; /* 右侧栏背景 */
+    padding: 50px 60px; /* 更大的内边距 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* 垂直居中表单内容 */
+    box-shadow: -5px 0 15px rgba(0,0,0,0.05); /* 左侧投影，表示分栏 */
+  }
+  
+  .welcomeTitle {
+    font-size: 1.8rem; /* “欢迎回来” */
+    font-weight: 600;
+    color: var(--text-color, #333);
+    margin-bottom: 8px;
+    text-align: left;
+  }
+  
+  .welcomeSubtitle {
+    font-size: 1rem;
+    color: var(--text-color-light, #666);
+    margin-bottom: 30px; /* 与表单的间距 */
+    text-align: left;
+  }
+  
+  .loginForm {
+    width: 100%;
+    max-width: 400px; /* 限制表单本身的最大宽度 */
+    margin: 0 auto; /* 如果 .rightPanel 没有足够 padding 使其居中 */
+  }
+  
+  .inputGroup {
+    margin-bottom: 20px;
+    text-align: left;
+  }
+  
+  .inputGroup label { /* 显式的 label */
+    display: block;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: var(--text-color-light, #555);
+    font-size: 0.9rem;
+  }
+  
+  .inputWithIcon {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  
+  .inputIcon {
+    position: absolute;
+    left: 15px;
+    color: #aaa; /* 图标颜色 */
+    font-size: 1.1em; /* 图标大小 */
+  }
+  
+  .inputGroup input {
+    width: 100%;
+    padding: 12px 15px 12px 45px; /* 左侧为图标留出空间 */
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+  .inputGroup input:focus {
+    border-color: var(--primary-color, #007bff);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    outline: none;
+  }
+  .inputGroup input::placeholder {
+    color: #aaa;
+  }
+  
+  
+  .formOptions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+  }
+  
+  .rememberMeLabel {
+    display: flex;
+    align-items: center;
+    color: var(--text-color-light, #555);
+    cursor: pointer;
+  }
+  
+  .rememberMeLabel input[type="checkbox"] {
+    margin-right: 8px;
+    /* 可以自定义 checkbox 样式 */
+  }
+  
+  .forgotPasswordLink {
+    color: var(--primary-color, #007bff);
+    text-decoration: none;
+  }
+  .forgotPasswordLink:hover {
+    text-decoration: underline;
+  }
+  
+  .errorMessage {
+    color: var(--danger-color, #dc3545);
+    font-size: 0.85rem;
+    margin-bottom: 15px;
+    text-align: center;
+  }
+  
+  .loginButton {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    background-color: var(--primary-color, #007bff); /* 登录按钮颜色 */
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  .loginButton:hover {
+    background-color: #0056b3;
+  }
+  .loginButton:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+  
+  .separator {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #aaa;
+    margin: 25px 0;
+    font-size: 0.9rem;
+  }
+  .separator::before,
+  .separator::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #eee;
+  }
+  .separator span {
+    padding: 0 15px;
+  }
+  
+  .socialLogin {
+    display: flex;
+    justify-content: center;
+    gap: 20px; /* 图标按钮间距 */
+    margin-bottom: 25px;
+  }
+  
+  .socialButton {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 50%; /* 圆形按钮 */
+    width: 48px;
+    height: 48px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.5rem; /* 图标大小 */
+    color: #555;
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+  }
+  .socialButton:hover {
+    background-color: #f7f7f7;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  
+  .signUpText {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-color-light, #666);
+  }
+  
+  .signUpLink {
+    color: var(--primary-color, #007bff);
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .signUpLink:hover {
+    text-decoration: underline;
+  }
+  
+  /* ------------------ Page Footer ------------------ */
+  .pageFooter {
+    padding: 20px 40px;
+    background-color: #fff; /* 页脚背景 */
+    border-top: 1px solid var(--border-color, #eee);
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-color-light, #777);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .footerLinks a {
+    margin-left: 20px;
+    color: var(--text-color-light, #777);
+    text-decoration: none;
+  }
+  .footerLinks a:hover {
+    color: var(--primary-color, #007bff);
+    text-decoration: underline;
+  }
+
+/* ------------------ 新增或修改的样式，用于密码输入框和切换按钮 ------------------ */
+.passwordInputContainer { /* 这个类加在密码输入框的 .inputWithIcon div 上 */
+    position: relative; /* 确保切换按钮可以相对于它定位 */
+    /* .inputWithIcon 本身可能已经是 display: flex, align-items: center; */
+  }
+  
+  .inputGroup input[type="password"],
+  .inputGroup input[type="text"] { /* 同时为两种 type 定义样式，确保切换时一致 */
+    /* 你的输入框通用样式，例如：*/
+    width: 100%;
+    padding: 12px 45px 12px 45px; /* 左侧给输入图标留空间，右侧给眼睛图标留空间 */
+    /* 其他样式如 border, border-radius, font-size */
+  }
+  
+  /* 如果你的 .inputIcon 是绝对定位的，确保它和眼睛按钮不冲突 */
+  /* 例如，.inputIcon 已经有 left: 15px; */
+  
+  .passwordVisibilityToggle {
+    position: absolute; /* 相对于 .passwordInputContainer 定位 */
+    right: 10px;        /* 放置在输入框右侧 */
+    top: 50%;
+    transform: translateY(-50%); /* 垂直居中 */
+    background: none;
+    border: none;
+    padding: 5px; /* 给图标一些点击区域 */
+    cursor: pointer;
+    color: #777; /* 图标颜色 */
+    font-size: 1.2em; /* 图标大小 */
+    display: flex; /* 使图标本身居中 */
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .passwordVisibilityToggle:hover {
+    color: #333; /* 悬停时图标颜色变深 */
+  }
+  
+  .passwordVisibilityToggle:focus {
+    outline: none; /* 可以自定义 focus 样式 */
+    /* box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25); */ /* 示例 focus 效果 */
+  }
+  
+  
+  /* 响应式调整 */
+  @media (max-width: 992px) { /* 当屏幕宽度小于 992px 时，左右栏堆叠 */
+    .loginPageContainer {
+      flex-direction: column; /* 左右栏垂直堆叠 */
+    }
+    .leftPanel, .rightPanel {
+      flex-basis: auto; /* 取消 flex-basis */
+      width: 100%;
+      box-shadow: none; /* 取消右侧栏的左投影 */
+    }
+    .leftPanel {
+      padding: 30px;
+      align-items: center; /* 居中内容 */
+      text-align: center;
+    }
+    .leftPanelText {
+      max-width: none; /* 取消文本宽度限制 */
+    }
+    .rightPanel {
+      padding: 30px 20px; /* 调整内边距 */
+    }
+    .pageHeader, .pageFooter {
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+    .pageFooter {
+      flex-direction: column;
+      gap: 10px;
+    }
+  }
+  @media (max-width: 480px) {
+    .welcomeTitle { font-size: 1.5rem; }
+    .leftPanelTitle { font-size: 1.8rem; }
+    .socialButton { width: 40px; height: 40px; font-size: 1.2rem; }
+  }

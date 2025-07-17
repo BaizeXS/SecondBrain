@@ -1,0 +1,49 @@
+/* src/pages/TempPage.module.css (新建文件) */
+.tempPage {
+  padding: 30px 40px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.header { text-align: center; margin-bottom: 30px; }
+.header h1 { font-size: 2rem; color: #333; margin-bottom: 5px; }
+.header p { color: #666; font-size: 0.9rem; }
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 40px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+.actionButton {
+  display: inline-flex; align-items: center; padding: 10px 20px;
+  font-size: 0.95rem; font-weight: 500; border-radius: 6px;
+  cursor: pointer; transition: all 0.2s; border: 1px solid #ccc;
+  background-color: #fff;
+}
+.actionButton svg { margin-right: 8px; }
+.actionButton:hover { background-color: #f0f0f0; }
+
+.saveButton { background-color: var(--primary-color, #007bff); color: white; border-color: var(--primary-color, #007bff); }
+.saveButton:hover { background-color: var(--primary-color-dark, #0056b3); }
+.discardButton { color: var(--danger-color, #dc3545); border-color: var(--danger-color, #dc3545); }
+.discardButton:hover { background-color: #f8d7da; }
+
+.previewContainer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+.previewSection {
+  background-color: #fff; padding: 20px; border-radius: 8px;
+  border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.previewSection h4 { margin-top: 0; display: flex; align-items: center; color: #34495e; }
+.previewSection h4 svg { margin-right: 8px; color: #888; }
+.previewList { list-style: none; padding-left: 15px; font-size: 0.9rem; }
+.previewList li { margin-bottom: 8px; color: #555; }
+.previewList li strong { font-weight: 600; color: #333; }
+
+.emptyState { text-align: center; padding: 50px 20px; }
+.emptyState h2 { font-size: 1.5rem; }
