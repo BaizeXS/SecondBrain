@@ -1,6 +1,7 @@
 """Authentication and authorization services."""
 
-from datetime import datetime, timedelta
+import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
@@ -13,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.models import User
+
+logger = logging.getLogger(__name__)
 
 # 密码加密上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -30,6 +33,39 @@ class AuthService:
         return pwd_context.verify(plain_password, hashed_password)
 
     @staticmethod
+    def validate_password_strength(password: str) -> None:
+        """验证密码强度.
+
+        密码要求：
+        - 至少8个字符
+        - 包含至少一个大写字母
+        - 包含至少一个小写字母
+        - 包含至少一个数字
+        """
+        if len(password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="密码长度至少为8个字符"
+            )
+
+        if not any(c.isupper() for c in password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="密码必须包含至少一个大写字母",
+            )
+
+        if not any(c.islower() for c in password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="密码必须包含至少一个小写字母",
+            )
+
+        if not any(c.isdigit() for c in password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="密码必须包含至少一个数字",
+            )
+
+    @staticmethod
     def get_password_hash(password: str) -> str:
         """生成密码哈希."""
         return pwd_context.hash(password)
@@ -41,9 +77,9 @@ class AuthService:
         """创建访问令牌."""
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(UTC) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(
+            expire = datetime.now(UTC) + timedelta(
                 minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
             )
         to_encode.update({"exp": expire})
@@ -56,7 +92,7 @@ class AuthService:
     def create_refresh_token(data: dict[str, Any]) -> str:
         """创建刷新令牌."""
         to_encode = data.copy()
-        expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(
             to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
@@ -71,12 +107,13 @@ class AuthService:
                 token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
             )
             return payload
-        except JWTError:
+        except JWTError as e:
+            logger.warning(f"Token verification failed: {e}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="无效的令牌",
                 headers={"WWW-Authenticate": "Bearer"},
-            )
+            ) from e
 
     @staticmethod
     async def get_user_by_username(db: AsyncSession, username: str) -> User | None:
@@ -133,6 +170,9 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱已存在"
             )
 
+        # 验证密码强度
+        AuthService.validate_password_strength(password)
+
         # 创建新用户
         hashed_password = AuthService.get_password_hash(password)
         user = User(
@@ -146,6 +186,8 @@ class AuthService:
         db.add(user)
         await db.commit()
         await db.refresh(user)
+
+        logger.info(f"New user created: {username} ({email})")
         return user
 
 
@@ -168,8 +210,8 @@ async def get_current_user(
         if user_id is None:
             raise credentials_exception
         user_id = int(user_id)  # 转换为整数
-    except JWTError:
-        raise credentials_exception
+    except JWTError as e:
+        raise credentials_exception from e
 
     user = await AuthService.get_user_by_id(db, user_id)
     if user is None:
@@ -196,46 +238,4 @@ async def get_current_premium_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="需要高级会员权限"
         )
-    return current_user
-
-
-class RateLimiter:
-    """API限流器."""
-
-    @staticmethod
-    async def check_user_rate_limit(user: User) -> bool:
-        """检查用户是否超出限流."""
-        # 检查是否需要重置每日使用量
-        now = datetime.now()
-        if not user.last_reset_date or now.date() > user.last_reset_date.date():
-            user.daily_usage = 0
-            user.last_reset_date = now
-
-        # 检查是否超出限制
-        limit = (
-            settings.RATE_LIMIT_PREMIUM_USER
-            if user.is_premium
-            else settings.RATE_LIMIT_FREE_USER
-        )
-        return user.daily_usage < limit
-
-    @staticmethod
-    async def increment_user_usage(db: AsyncSession, user: User) -> None:
-        """增加用户使用次数."""
-        user.daily_usage += 1
-        await db.commit()
-
-
-async def check_rate_limit(
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """检查用户API限流."""
-    if not await RateLimiter.check_user_rate_limit(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="超出每日使用限制"
-        )
-
-    # 增加使用次数
-    await RateLimiter.increment_user_usage(db, current_user)
     return current_user

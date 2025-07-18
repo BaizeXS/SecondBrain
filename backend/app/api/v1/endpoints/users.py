@@ -1,15 +1,21 @@
-"""User endpoints v2 - 使用服务层和CRUD层的完整版本."""
+"""User endpoints."""
+
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
+from app.api.v1.endpoints.auth import validate_password_strength
 from app.core.auth import AuthService, get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.models import User
-from app.schemas.users import UserResponse, UserUpdate
+from app.models.models import Conversation, Document, Note, Space, User
+from app.schemas.auth import ChangePasswordRequest
+from app.schemas.users import UserResponse, UserStats, UserUpdate
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -28,104 +34,109 @@ async def update_current_user(
     current_user: User = Depends(get_current_active_user),
 ) -> UserResponse:
     """更新当前用户信息."""
-    # 检查用户名是否已被使用
-    if user_update.username and user_update.username != current_user.username:
-        existing = await crud.crud_user.get_by_username(db, username=user_update.username)
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="用户名已被使用",
-            )
-
-    # 检查邮箱是否已被使用
-    if user_update.email and user_update.email != current_user.email:
-        existing = await crud.crud_user.get_by_email(db, email=user_update.email)
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="邮箱已被使用",
-            )
-
     # 更新用户信息
-    updated_user = await crud.crud_user.update(db, db_obj=current_user, obj_in=user_update)
-    return UserResponse.model_validate(updated_user)
+    try:
+        updated_user = await crud.crud_user.update(
+            db, db_obj=current_user, obj_in=user_update
+        )
+        logger.info(f"User {current_user.username} updated profile")
+        return UserResponse.model_validate(updated_user)
+    except Exception as e:
+        logger.error(f"Failed to update user profile: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="更新用户信息失败"
+        ) from e
 
 
 @router.post("/me/change-password", status_code=status.HTTP_204_NO_CONTENT)
 async def change_password(
-    current_password: str,
-    new_password: str,
+    password_data: ChangePasswordRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> None:
     """修改密码."""
     # 验证当前密码
-    if not AuthService.verify_password(current_password, current_user.hashed_password):
+    if not AuthService.verify_password(
+        password_data.old_password, current_user.hashed_password
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="当前密码错误",
         )
 
-    # 验证新密码
-    if len(new_password) < 6:
+    # 验证新密码强度
+    try:
+        validate_password_strength(password_data.new_password)
+    except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="新密码长度至少为6位",
-        )
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
 
     # 更新密码
-    hashed_password = AuthService.get_password_hash(new_password)
+    hashed_password = AuthService.get_password_hash(password_data.new_password)
     await crud.crud_user.update(
         db, db_obj=current_user, obj_in={"hashed_password": hashed_password}
     )
+    logger.info(f"User {current_user.username} changed password")
 
 
-@router.get("/me/stats", response_model=dict)
+@router.get("/me/stats", response_model=UserStats)
 async def get_user_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> dict:
+) -> UserStats:
     """获取用户统计信息."""
-    # 获取空间数量
-    space_count = await crud.crud_space.get_count(
-        db, query=crud.crud_space.model.user_id == current_user.id
+    # 使用单个查询获取所有统计信息
+    stats_query = (
+        select(
+            func.count(func.distinct(Space.id)).label("space_count"),
+            func.count(func.distinct(Document.id)).label("document_count"),
+            func.count(func.distinct(Conversation.id)).label("conversation_count"),
+            func.count(func.distinct(Note.id)).label("note_count"),
+            func.coalesce(func.sum(Document.file_size), 0).label("total_storage"),
+        )
+        .select_from(User)
+        .outerjoin(Space, Space.user_id == User.id)
+        .outerjoin(Document, Document.user_id == User.id)
+        .outerjoin(Conversation, Conversation.user_id == User.id)
+        .outerjoin(Note, Note.user_id == User.id)
+        .where(User.id == current_user.id)
+        .group_by(User.id)
     )
 
-    # 获取文档数量
-    document_count = await crud.crud_document.get_count(
-        db, query=crud.crud_document.model.user_id == current_user.id
+    result = await db.execute(stats_query)
+    stats = result.first()
+
+    if not stats:
+        return UserStats(
+            total_spaces=0,
+            total_documents=0,
+            total_conversations=0,
+            total_messages=0,
+            total_tokens=0,
+            total_notes=0,
+            daily_usage=current_user.daily_usage,
+            usage_limit=settings.RATE_LIMIT_PREMIUM_USER
+            if current_user.is_premium
+            else settings.RATE_LIMIT_FREE_USER,
+            storage_used=0,
+            storage_limit=0,  # Storage limit not implemented
+        )
+
+    return UserStats(
+        total_spaces=stats.space_count or 0,
+        total_documents=stats.document_count or 0,
+        total_conversations=stats.conversation_count or 0,
+        total_messages=0,  # Messages are not directly linked to users
+        total_tokens=0,  # Token tracking not implemented yet
+        total_notes=stats.note_count or 0,
+        daily_usage=current_user.daily_usage,
+        usage_limit=settings.RATE_LIMIT_PREMIUM_USER
+        if current_user.is_premium
+        else settings.RATE_LIMIT_FREE_USER,
+        storage_used=int(stats.total_storage or 0),
+        storage_limit=0,  # Storage limit not implemented
     )
-
-    # 获取对话数量
-    conversation_count = await crud.crud_conversation.get_count(
-        db, query=crud.crud_conversation.model.user_id == current_user.id
-    )
-
-    # 计算存储使用量
-    documents = await crud.crud_document.get_user_documents(db, user_id=current_user.id)
-    total_storage = sum(doc.file_size for doc in documents)
-
-    return {
-        "user_id": current_user.id,
-        "username": current_user.username,
-        "is_premium": current_user.is_premium,
-        "stats": {
-            "spaces": space_count,
-            "documents": document_count,
-            "conversations": conversation_count,
-            "storage_bytes": total_storage,
-            "storage_mb": round(total_storage / 1024 / 1024, 2),
-        },
-        "limits": {
-            "max_spaces": 10 if current_user.is_premium else 5,
-            "max_file_size_mb": settings.MAX_FILE_SIZE_MB,
-            "daily_api_calls": settings.RATE_LIMIT_PREMIUM_USER if current_user.is_premium else settings.RATE_LIMIT_FREE_USER,
-        },
-        "usage": {
-            "daily_api_calls": current_user.daily_usage,
-            "space_usage_percent": round(space_count / (10 if current_user.is_premium else 5) * 100, 1),
-        },
-    }
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
@@ -144,3 +155,4 @@ async def delete_account(
 
     # 删除用户（会级联删除相关数据）
     await crud.crud_user.remove(db, id=current_user.id)
+    logger.info(f"User {current_user.username} deleted account")

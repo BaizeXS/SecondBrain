@@ -1,7 +1,8 @@
 """Rate limiter for API usage control."""
 
-from datetime import datetime, timedelta
-from typing import Optional
+import logging
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
@@ -10,11 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.models import UsageLog, User
 
+logger = logging.getLogger(__name__)
+
 
 class RateLimiter:
     """速率限制器."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.free_user_limit = settings.RATE_LIMIT_FREE_USER
         self.premium_user_limit = settings.RATE_LIMIT_PREMIUM_USER
 
@@ -36,7 +39,7 @@ class RateLimiter:
             )
 
         # 检查每日使用限制
-        today = datetime.now().date()
+        today = datetime.now(UTC).date()
 
         # 获取今日使用量
         usage_query = select(func.count(UsageLog.id)).where(
@@ -65,12 +68,12 @@ class RateLimiter:
         user_id: int,
         action: str,
         db: AsyncSession,
-        resource_type: Optional[str] = None,
-        resource_id: Optional[int] = None,
-        model: Optional[str] = None,
-        provider: Optional[str] = None,
-        token_count: Optional[int] = None,
-        cost: Optional[float] = None,
+        resource_type: str | None = None,
+        resource_id: int | None = None,
+        model: str | None = None,
+        provider: str | None = None,
+        token_count: int | None = None,
+        cost: float | None = None,
     ) -> None:
         """增加使用量记录."""
         try:
@@ -94,7 +97,7 @@ class RateLimiter:
         except Exception as e:
             await db.rollback()
             # 记录日志但不抛出异常，避免影响主要功能
-            print(f"Failed to record usage: {e}")
+            logger.error(f"Failed to record usage: {e}")
 
     async def _update_user_daily_usage(
         self,
@@ -111,12 +114,14 @@ class RateLimiter:
             if not user:
                 return
 
-            today = datetime.now().date()
+            today = datetime.now(UTC).date()
 
             # 检查是否需要重置每日使用量
             if not user.last_reset_date or user.last_reset_date != today:
                 user.daily_usage = 0
-                user.last_reset_date = today
+                user.last_reset_date = datetime.combine(
+                    today, datetime.min.time()
+                ).replace(tzinfo=UTC)
 
             # 获取今日总使用量
             usage_query = select(func.count(UsageLog.id)).where(
@@ -132,17 +137,17 @@ class RateLimiter:
 
         except Exception as e:
             await db.rollback()
-            print(f"Failed to update daily usage: {e}")
+            logger.error(f"Failed to update daily usage: {e}")
 
     async def get_user_usage_stats(
         self,
         user_id: int,
         db: AsyncSession,
         days: int = 30,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """获取用户使用统计."""
         try:
-            start_date = datetime.now() - timedelta(days=days)
+            start_date = datetime.now(UTC) - timedelta(days=days)
 
             # 获取使用记录
             usage_query = (
@@ -195,7 +200,7 @@ class RateLimiter:
             return stats
 
         except Exception as e:
-            print(f"Failed to get usage stats: {e}")
+            logger.error(f"Failed to get usage stats: {e}")
             return {
                 "total_requests": 0,
                 "total_tokens": 0,
@@ -219,7 +224,9 @@ class RateLimiter:
 
             if user:
                 user.daily_usage = 0
-                user.last_reset_date = datetime.now().date()
+                user.last_reset_date = datetime.now(UTC).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
                 await db.commit()
 
         except Exception as e:
@@ -227,7 +234,7 @@ class RateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"重置使用量失败: {str(e)}",
-            )
+            ) from e
 
 
 # 全局实例

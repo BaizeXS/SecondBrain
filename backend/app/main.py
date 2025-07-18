@@ -32,12 +32,6 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Prometheus指标 (暂时禁用)
-# REQUEST_COUNT = Counter(
-#     "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
-# )
-# REQUEST_DURATION = Histogram("http_request_duration_seconds", "HTTP request duration")
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:

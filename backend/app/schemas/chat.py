@@ -32,7 +32,9 @@ class ChatCompletionRequest(BaseModel):
 
     model: str = Field(..., description="模型名称")
     messages: list[Message] = Field(..., description="消息列表")
-    mode: str | None = Field("chat", description="对话模式: chat（普通聊天）, search（网络搜索）")
+    mode: str | None = Field(
+        "chat", description="对话模式: chat（普通聊天）, search（网络搜索）"
+    )
     conversation_id: int | None = Field(None, description="对话ID")
     space_id: int | None = Field(None, description="空间ID")
     document_ids: list[int] | None = Field(None, description="关联的文档ID列表")
@@ -40,7 +42,9 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: int | None = Field(None, ge=1, description="最大令牌数")
     stream: bool = Field(False, description="是否流式响应")
     top_p: float | None = Field(None, ge=0.0, le=1.0, description="Top-p采样")
-    frequency_penalty: float | None = Field(0.0, ge=-2.0, le=2.0, description="频率惩罚")
+    frequency_penalty: float | None = Field(
+        0.0, ge=-2.0, le=2.0, description="频率惩罚"
+    )
     presence_penalty: float | None = Field(0.0, ge=-2.0, le=2.0, description="存在惩罚")
     stop: str | list[str] | None = Field(None, description="停止序列")
     n: int | None = Field(1, ge=1, le=10, description="生成数量")
@@ -129,3 +133,13 @@ class ChatHistoryExport(BaseModel):
     date_to: datetime | None = Field(None, description="结束日期")
     include_system_messages: bool = Field(True, description="包含系统消息")
     include_metadata: bool = Field(True, description="包含元数据")
+
+
+class ChatResponse(BaseModel):
+    """聊天响应."""
+
+    message: str = Field(..., description="响应消息")
+    model: str = Field(..., description="使用的模型")
+    mode: str = Field("chat", description="聊天模式")
+    has_attachments: bool = Field(False, description="是否包含附件")
+    attachment_count: int = Field(0, description="附件数量")

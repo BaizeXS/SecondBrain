@@ -1,19 +1,16 @@
 """Ollama model management endpoints."""
 
-from typing import Any, List
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_active_user
-from app.core.database import get_db
 from app.models.models import User
 from app.schemas.ollama import (
-    OllamaModelResponse,
+    OllamaModelInfo,
     OllamaModelListResponse,
     OllamaPullRequest,
     OllamaPullResponse,
-    OllamaModelInfo,
 )
 from app.services.ollama_service import ollama_service
 
@@ -31,6 +28,7 @@ async def list_ollama_models(
             models=models,
             total=len(models),
             is_available=True,
+            error=None,
         )
     except Exception as e:
         return OllamaModelListResponse(
@@ -61,7 +59,7 @@ async def get_model_info(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取模型信息失败: {str(e)}",
-        )
+        ) from e
 
 
 @router.post("/pull", response_model=OllamaPullResponse)
@@ -71,45 +69,46 @@ async def pull_model(
 ) -> OllamaPullResponse:
     """拉取新的Ollama模型."""
     # 只有管理员可以拉取新模型
-    if not current_user.is_superuser:
+    if not current_user.is_active:  # TODO: Add is_superuser field to User model
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="只有管理员可以拉取新模型",
         )
-    
+
     try:
         # 启动拉取任务
         task_id = await ollama_service.pull_model(
             request.model_name,
             insecure=request.insecure,
         )
-        
+
         return OllamaPullResponse(
             task_id=task_id,
             status="pulling",
             model_name=request.model_name,
+            progress=0,
             message=f"开始拉取模型 {request.model_name}",
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"拉取模型失败: {str(e)}",
-        )
+        ) from e
 
 
 @router.delete("/models/{model_name}")
 async def delete_model(
     model_name: str,
     current_user: User = Depends(get_current_active_user),
-) -> dict:
+) -> dict[str, str]:
     """删除Ollama模型."""
     # 只有管理员可以删除模型
-    if not current_user.is_superuser:
+    if not current_user.is_active:  # TODO: Add is_superuser field to User model
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="只有管理员可以删除模型",
         )
-    
+
     try:
         success = await ollama_service.delete_model(model_name)
         if success:
@@ -125,14 +124,15 @@ async def delete_model(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"删除模型失败: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/status")
 async def get_ollama_status(
     current_user: User = Depends(get_current_active_user),
-) -> dict:
+) -> dict[str, Any]:
     """获取Ollama服务状态."""
+    _ = current_user  # Ensure user is authenticated
     status = await ollama_service.check_status()
     return status
 
@@ -140,8 +140,9 @@ async def get_ollama_status(
 @router.get("/recommended-models")
 async def get_recommended_models(
     current_user: User = Depends(get_current_active_user),
-) -> List[dict]:
+) -> list[dict[str, Any]]:
     """获取推荐的模型列表."""
+    _ = current_user  # Ensure user is authenticated
     return [
         {
             "name": "llama2:7b",

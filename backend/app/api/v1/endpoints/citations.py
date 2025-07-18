@@ -1,14 +1,12 @@
 """Citation management endpoints."""
 
-from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.core.auth import get_current_active_user
 from app.core.database import get_db
-from app.models.models import User
+from app.models.models import Citation, User
 from app.schemas.citation import (
     BibTeXExportRequest,
     BibTeXImportRequest,
@@ -40,7 +38,7 @@ async def import_bibtex(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="空间不存在",
         )
-    
+
     if space.user_id != current_user.id:
         # 检查协作权限
         access = await crud.crud_space.get_user_access(
@@ -51,7 +49,7 @@ async def import_bibtex(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="无权在此空间导入引用",
             )
-    
+
     # 导入BibTeX
     result = await citation_service.import_bibtex(
         db,
@@ -61,7 +59,7 @@ async def import_bibtex(
         create_documents=import_data.create_documents,
         tags=import_data.tags,
     )
-    
+
     return BibTeXImportResponse(**result)
 
 
@@ -78,13 +76,18 @@ async def get_citations(
     if document_id:
         # 检查文档权限
         from app.services import DocumentService
-        document = await DocumentService.get_document_by_id(db, document_id, current_user)
+
+        doc_service = DocumentService()
+        document = await doc_service.get_document_by_id(db, document_id, current_user)
         if not document:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="文档不存在或无权访问",
             )
-        citations = await crud.crud_citation.get_by_document(db, document_id=document_id)
+        citations = await crud.crud_citation.get_by_document(
+            db, document_id=document_id
+        )
+        total = len(citations)  # 文档引用不分页，直接获取总数
     elif space_id:
         # 检查空间权限
         space = await crud.crud_space.get(db, id=space_id)
@@ -93,7 +96,7 @@ async def get_citations(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="空间不存在",
             )
-        
+
         if space.user_id != current_user.id and not space.is_public:
             access = await crud.crud_space.get_user_access(
                 db, space_id=space_id, user_id=current_user.id
@@ -103,18 +106,25 @@ async def get_citations(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="无权访问此空间",
                 )
-        
+
         citations = await crud.crud_citation.get_by_space(
             db, space_id=space_id, skip=skip, limit=limit
         )
+        # 获取空间引用总数
+        total = await crud.crud_citation.count_by_space(db, space_id=space_id)
     else:
         # 获取用户的所有引用
         citations = await crud.crud_citation.get_user_citations(
             db, user_id=current_user.id, skip=skip, limit=limit
         )
-    
-    total = len(citations)
-    
+        # 获取用户引用总数（需要添加count方法）
+        from sqlalchemy import func, select
+
+        result = await db.execute(
+            select(func.count(Citation.id)).where(Citation.user_id == current_user.id)
+        )
+        total = result.scalar() or 0
+
     return CitationListResponse(
         citations=[CitationResponse.model_validate(c) for c in citations],
         total=total,
@@ -132,13 +142,13 @@ async def get_citation(
 ) -> CitationResponse:
     """获取引用详情."""
     citation = await crud.crud_citation.get(db, id=citation_id)
-    
+
     if not citation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="引用不存在",
         )
-    
+
     # 检查权限
     if citation.user_id != current_user.id:
         # 检查空间权限
@@ -152,26 +162,26 @@ async def get_citation(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="无权访问此引用",
                 )
-    
+
     return CitationResponse.model_validate(citation)
 
 
 @router.post("/", response_model=CitationResponse, status_code=status.HTTP_201_CREATED)
 async def create_citation(
+    citation_data: CitationCreate,
     space_id: int = Query(..., description="空间ID"),
-    citation_data: CitationCreate = ...,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> CitationResponse:
     """创建新引用."""
     # 检查空间权限
-    space = await crud.space.get(db, id=space_id)
+    space = await crud.crud_space.get(db, id=space_id)
     if not space:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="空间不存在",
         )
-    
+
     if space.user_id != current_user.id:
         access = await crud.crud_space.get_user_access(
             db, space_id=space_id, user_id=current_user.id
@@ -181,7 +191,7 @@ async def create_citation(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="无权在此空间创建引用",
             )
-    
+
     # 检查bibtex_key是否已存在
     existing = await crud.crud_citation.get_by_bibtex_key(
         db, bibtex_key=citation_data.bibtex_key, user_id=current_user.id
@@ -191,7 +201,7 @@ async def create_citation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="引用键已存在",
         )
-    
+
     # 创建引用
     citation = await crud.crud_citation.create(
         db,
@@ -199,7 +209,7 @@ async def create_citation(
         user_id=current_user.id,
         space_id=space_id,
     )
-    
+
     return CitationResponse.model_validate(citation)
 
 
@@ -212,23 +222,25 @@ async def update_citation(
 ) -> CitationResponse:
     """更新引用信息."""
     citation = await crud.crud_citation.get(db, id=citation_id)
-    
+
     if not citation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="引用不存在",
         )
-    
+
     # 检查权限
     if citation.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权编辑此引用",
         )
-    
+
     # 更新引用
-    citation = await crud.crud_citation.update(db, db_obj=citation, obj_in=citation_data)
-    
+    citation = await crud.crud_citation.update(
+        db, db_obj=citation, obj_in=citation_data
+    )
+
     return CitationResponse.model_validate(citation)
 
 
@@ -240,20 +252,20 @@ async def delete_citation(
 ) -> None:
     """删除引用."""
     citation = await crud.crud_citation.get(db, id=citation_id)
-    
+
     if not citation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="引用不存在",
         )
-    
+
     # 检查权限
     if citation.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权删除此引用",
         )
-    
+
     # 删除引用
     await crud.crud_citation.remove(db, id=citation_id)
 
@@ -279,9 +291,11 @@ async def search_citations(
         skip=skip,
         limit=limit,
     )
-    
+
+    # 搜索服务应该返回总数，这里暂时使用返回结果的长度
+    # TODO: 需要在citation_service中实现返回总数的功能
     total = len(citations)
-    
+
     return CitationListResponse(
         citations=[CitationResponse.model_validate(c) for c in citations],
         total=total,
@@ -306,7 +320,7 @@ async def export_citations(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="空间不存在",
             )
-        
+
         if space.user_id != current_user.id and not space.is_public:
             access = await crud.crud_space.get_user_access(
                 db, space_id=export_data.space_id, user_id=current_user.id
@@ -316,7 +330,7 @@ async def export_citations(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="无权访问此空间",
                 )
-    
+
     # 导出引用
     content = await citation_service.export_citations(
         db,
@@ -325,7 +339,7 @@ async def export_citations(
         space_id=export_data.space_id,
         format=export_data.format,
     )
-    
+
     # 设置响应头
     if export_data.format == "bibtex":
         media_type = "text/plain"
@@ -339,22 +353,20 @@ async def export_citations(
     else:
         media_type = "text/plain"
         filename = "references.txt"
-    
+
     return Response(
         content=content,
         media_type=media_type,
-        headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        }
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
-@router.post("/format", response_model=List[FormattedCitation])
+@router.post("/format", response_model=list[FormattedCitation])
 async def format_citations(
     format_data: CitationStyleFormat,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> List[FormattedCitation]:
+) -> list[FormattedCitation]:
     """格式化引用（APA、MLA等格式）."""
     formatted = await citation_service.format_citations(
         db,
@@ -362,5 +374,5 @@ async def format_citations(
         style=format_data.style,
         user=current_user,
     )
-    
+
     return [FormattedCitation(**f) for f in formatted]

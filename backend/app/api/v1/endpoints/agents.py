@@ -1,5 +1,6 @@
 """Agent endpoints v2 - 使用服务层和CRUD层的完整版本."""
 
+from collections.abc import AsyncGenerator
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -35,68 +36,68 @@ async def get_agents(
     """获取AI代理列表."""
     # 简化版本：返回预定义的代理列表
     agents = [
-        {
-            "id": 1,
-            "name": "Deep Research",
-            "description": "基于Perplexity的深度研究代理，自动收集、分析和整理研究资料",
-            "category": "research",
-            "model": "perplexity",
-            "temperature": 0.7,
-            "capabilities": ["deep-research", "auto-collect", "analysis", "summary"],
-            "is_public": True,
-            "is_active": True,
-            "is_verified": True,
-            "usage_count": 0,
-            "rating": 5.0,
-            "tags": ["research", "deep-research", "perplexity"],
-            "created_by": current_user.id,
-            "created_at": "2024-01-01T00:00:00",
-            "updated_at": "2024-01-01T00:00:00",
-        },
-        {
-            "id": 2,
-            "name": "写作助手",
-            "description": "帮助你创作和优化文本内容",
-            "category": "writing",
-            "model": "gpt-4o-mini",
-            "temperature": 0.8,
-            "capabilities": ["generation", "editing", "translation"],
-            "is_public": True,
-            "is_active": True,
-            "is_verified": True,
-            "usage_count": 0,
-            "rating": 5.0,
-            "tags": ["writing", "creative"],
-            "created_by": current_user.id,
-            "created_at": "2024-01-01T00:00:00",
-            "updated_at": "2024-01-01T00:00:00",
-        },
-        {
-            "id": 3,
-            "name": "分析专家",
-            "description": "进行数据分析和可视化",
-            "category": "analysis",
-            "model": "gpt-4o-mini",
-            "temperature": 0.5,
-            "capabilities": ["analysis", "visualization", "report"],
-            "is_public": True,
-            "is_active": True,
-            "is_verified": True,
-            "usage_count": 0,
-            "rating": 5.0,
-            "tags": ["data", "analysis"],
-            "created_by": current_user.id,
-            "created_at": "2024-01-01T00:00:00",
-            "updated_at": "2024-01-01T00:00:00",
-        },
+        AgentResponse(
+            id=1,
+            name="Deep Research",
+            description="基于Perplexity的深度研究代理，自动收集、分析和整理研究资料",
+            agent_type="research",
+            avatar_url=None,
+            capabilities=["deep-research", "auto-collect", "analysis", "summary"],
+            tools=None,
+            is_public=True,
+            is_active=True,
+            is_verified=True,
+            usage_count=0,
+            rating=5.0,
+            tags=["research", "deep-research", "perplexity"],
+            user_id=None,  # 官方Agent
+            created_at=datetime(2024, 1, 1),
+            updated_at=datetime(2024, 1, 1),
+        ),
+        AgentResponse(
+            id=2,
+            name="写作助手",
+            description="帮助你创作和优化文本内容",
+            agent_type="writing",
+            avatar_url=None,
+            capabilities=["generation", "editing", "translation"],
+            tools=None,
+            is_public=True,
+            is_active=True,
+            is_verified=True,
+            usage_count=0,
+            rating=5.0,
+            tags=["writing", "creative"],
+            user_id=None,  # 官方Agent
+            created_at=datetime(2024, 1, 1),
+            updated_at=datetime(2024, 1, 1),
+        ),
+        AgentResponse(
+            id=3,
+            name="分析专家",
+            description="进行数据分析和可视化",
+            agent_type="analysis",
+            avatar_url=None,
+            capabilities=["analysis", "visualization", "report"],
+            tools=None,
+            is_public=True,
+            is_active=True,
+            is_verified=True,
+            usage_count=0,
+            rating=5.0,
+            tags=["data", "analysis"],
+            user_id=None,  # 官方Agent
+            created_at=datetime(2024, 1, 1),
+            updated_at=datetime(2024, 1, 1),
+        ),
     ]
 
     # 应用筛选
     if agent_type:
-        agents = [a for a in agents if a["category"] == agent_type]
+        agents = [a for a in agents if a.agent_type == agent_type]
 
     if is_public is not None:
-        agents = [a for a in agents if a["is_public"] == is_public]
+        agents = [a for a in agents if a.is_public == is_public]
 
     # 分页
     total = len(agents)
@@ -120,63 +121,60 @@ async def get_agent(
     """获取AI代理详情."""
     # 简化版本：返回预定义的代理
     agents = {
-        1: {
-            "id": 1,
-            "name": "Deep Research",
-            "description": "基于Perplexity的深度研究代理，自动收集、分析和整理研究资料",
-            "category": "research",
-            "model": "perplexity",
-            "temperature": 0.7,
-            "max_tokens": None,
-            "capabilities": ["deep-research", "auto-collect", "analysis", "summary"],
-            "is_public": True,
-            "is_active": True,
-            "is_verified": True,
-            "usage_count": 0,
-            "rating": 5.0,
-            "tags": ["research", "deep-research", "perplexity"],
-            "created_by": current_user.id,
-            "created_at": "2024-01-01T00:00:00",
-            "updated_at": "2024-01-01T00:00:00",
-        },
-        2: {
-            "id": 2,
-            "name": "写作助手",
-            "description": "帮助你创作和优化文本内容",
-            "category": "writing",
-            "model": "gpt-4o-mini",
-            "temperature": 0.8,
-            "max_tokens": 2000,
-            "capabilities": ["generation", "editing", "translation"],
-            "is_public": True,
-            "is_active": True,
-            "is_verified": True,
-            "usage_count": 0,
-            "rating": 5.0,
-            "tags": ["writing", "creative"],
-            "created_by": current_user.id,
-            "created_at": "2024-01-01T00:00:00",
-            "updated_at": "2024-01-01T00:00:00",
-        },
-        3: {
-            "id": 3,
-            "name": "分析专家",
-            "description": "进行数据分析和可视化",
-            "category": "analysis",
-            "model": "gpt-4o-mini",
-            "temperature": 0.5,
-            "max_tokens": 2000,
-            "capabilities": ["analysis", "visualization", "report"],
-            "is_public": True,
-            "is_active": True,
-            "is_verified": True,
-            "usage_count": 0,
-            "rating": 5.0,
-            "tags": ["data", "analysis"],
-            "created_by": current_user.id,
-            "created_at": "2024-01-01T00:00:00",
-            "updated_at": "2024-01-01T00:00:00",
-        },
+        1: AgentResponse(
+            id=1,
+            name="Deep Research",
+            description="基于Perplexity的深度研究代理，自动收集、分析和整理研究资料",
+            agent_type="research",
+            avatar_url=None,
+            capabilities=["deep-research", "auto-collect", "analysis", "summary"],
+            tools=None,
+            is_public=True,
+            is_active=True,
+            is_verified=True,
+            usage_count=0,
+            rating=5.0,
+            tags=["research", "deep-research", "perplexity"],
+            user_id=None,  # 官方Agent
+            created_at=datetime(2024, 1, 1),
+            updated_at=datetime(2024, 1, 1),
+        ),
+        2: AgentResponse(
+            id=2,
+            name="写作助手",
+            description="帮助你创作和优化文本内容",
+            agent_type="writing",
+            avatar_url=None,
+            capabilities=["generation", "editing", "translation"],
+            tools=None,
+            is_public=True,
+            is_active=True,
+            is_verified=True,
+            usage_count=0,
+            rating=5.0,
+            tags=["writing", "creative"],
+            user_id=None,  # 官方Agent
+            created_at=datetime(2024, 1, 1),
+            updated_at=datetime(2024, 1, 1),
+        ),
+        3: AgentResponse(
+            id=3,
+            name="分析专家",
+            description="进行数据分析和可视化",
+            agent_type="analysis",
+            avatar_url=None,
+            capabilities=["analysis", "visualization", "report"],
+            tools=None,
+            is_public=True,
+            is_active=True,
+            is_verified=True,
+            usage_count=0,
+            rating=5.0,
+            tags=["data", "analysis"],
+            user_id=None,  # 官方Agent
+            created_at=datetime(2024, 1, 1),
+            updated_at=datetime(2024, 1, 1),
+        ),
     }
 
     agent = agents.get(agent_id)
@@ -186,38 +184,39 @@ async def get_agent(
             detail="代理不存在",
         )
 
-    return AgentResponse(**agent)
+    return agent
 
 
-@router.post("/{agent_id}/execute")
+@router.post("/{agent_id}/execute", response_model=None)
 async def execute_agent(
     agent_id: int,
     request: AgentExecuteRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-):
+) -> StreamingResponse | AgentExecuteResponse:
     """执行AI代理."""
     # Deep Research代理
     if agent_id == 1:
         # 调用Deep Research服务
         if request.stream:
             # 流式响应
-            async def generate():
+            async def generate() -> AsyncGenerator[str, None]:
                 async for chunk in deep_research_service.stream_research(
                     query=request.prompt,
                     mode=request.mode or "general",
                     user=current_user,
-                    db=db
+                    db=db,
                 ):
                     yield f"data: {chunk}\n\n"
                 yield "data: [DONE]\n\n"
+
             return StreamingResponse(
                 generate(),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
                     "X-Accel-Buffering": "no",
-                }
+                },
             )
         else:
             # 非流式响应
@@ -226,12 +225,12 @@ async def execute_agent(
                 mode=request.mode or "general",
                 user=current_user,
                 db=db,
-                space_id=request.space_id
+                space_id=request.space_id,
             )
             if "error" in result:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=result["error"]
+                    detail=result["error"],
                 )
             return AgentExecuteResponse(
                 execution_id=result.get("research_id", ""),
@@ -239,7 +238,7 @@ async def execute_agent(
                 status="completed",
                 result=result,
                 execution_time=0,
-                created_at=result.get("created_at", datetime.now())
+                created_at=result.get("created_at", datetime.now()),
             )
     # 其他代理的简化实现
     elif agent_id == 2:  # 写作助手
@@ -285,48 +284,45 @@ async def create_agent(
         id=100,
         name=agent_data.name,
         description=agent_data.description,
-        category=agent_data.category,
-        model=agent_data.model,
-        temperature=agent_data.temperature,
-        max_tokens=agent_data.max_tokens,
+        agent_type=agent_data.agent_type,
+        avatar_url=agent_data.avatar_url,
         capabilities=agent_data.capabilities,
-        is_public=agent_data.is_public,
+        tools=agent_data.tools,
+        is_public=False,  # 默认私有
         is_active=True,
         is_verified=False,
         usage_count=0,
         rating=0.0,
-        tags=agent_data.tags,
-        created_by=current_user.id,
-        created_at="2024-01-01T00:00:00",
-        updated_at="2024-01-01T00:00:00",
+        tags=None,
+        user_id=current_user.id,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
     )
 
 
-@router.post("/deep-research", response_model=DeepResearchResponse)
+@router.post("/deep-research", response_model=None)
 async def create_deep_research(
     request: DeepResearchRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> DeepResearchResponse | StreamingResponse:
+) -> StreamingResponse | DeepResearchResponse:
     """创建Deep Research任务 - 专用端点."""
     if request.stream:
         # 流式响应
-        async def generate():
+        async def generate() -> AsyncGenerator[str, None]:
             async for chunk in deep_research_service.stream_research(
-                query=request.query,
-                mode=request.mode,
-                user=current_user,
-                db=db
+                query=request.query, mode=request.mode, user=current_user, db=db
             ):
                 yield f"data: {chunk}\n\n"
             yield "data: [DONE]\n\n"
+
         return StreamingResponse(
             generate(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
                 "X-Accel-Buffering": "no",
-            }
+            },
         )
     else:
         # 非流式响应
@@ -335,12 +331,12 @@ async def create_deep_research(
             mode=request.mode,
             user=current_user,
             db=db,
-            space_id=request.space_id
+            space_id=request.space_id,
         )
         if "error" in result:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=result["error"]
+                detail=result["error"],
             )
         return DeepResearchResponse(
             research_id=result.get("research_id", ""),
@@ -349,5 +345,5 @@ async def create_deep_research(
             mode=result.get("mode", ""),
             status=result.get("status", ""),
             result=result.get("result"),
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )

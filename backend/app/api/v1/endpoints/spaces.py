@@ -1,6 +1,5 @@
 """Space endpoints v2 - 使用服务层和CRUD层的完整版本."""
 
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,7 +29,7 @@ async def create_space(
     try:
         # 检查用户空间数量限制
         space_count = await SpaceService.count_user_spaces(db, current_user)
-        max_spaces = 10 if current_user.is_premium else 5
+        max_spaces = 10 if current_user.is_premium else 5  # TODO: 移到配置文件
 
         if space_count >= max_spaces:
             raise HTTPException(
@@ -42,16 +41,18 @@ async def create_space(
         space = await SpaceService.create_space(db, space_data, current_user)
         return SpaceResponse.model_validate(space)
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"创建空间失败: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/", response_model=SpaceListResponse)
@@ -79,8 +80,14 @@ async def get_spaces(
         spaces = await SpaceService.get_user_spaces(db, current_user, skip, limit)
 
     # 应用筛选条件
+    # TODO: 优化 - 这些筛选应该在数据库层面完成，而不是在内存中
     if search:
-        spaces = [s for s in spaces if search.lower() in s.name.lower() or (s.description and search.lower() in s.description.lower())]
+        spaces = [
+            s
+            for s in spaces
+            if search.lower() in s.name.lower()
+            or (s.description and search.lower() in s.description.lower())
+        ]
 
     if tags:
         spaces = [s for s in spaces if s.tags and any(tag in s.tags for tag in tags)]
@@ -89,6 +96,8 @@ async def get_spaces(
         spaces = [s for s in spaces if s.is_public == is_public]
 
     # 获取总数
+    # 对于毕业设计项目，简单返回当前筛选后的数量
+    # 实际项目中应该使用单独的 COUNT 查询
     total = len(spaces)
 
     return SpaceListResponse(
@@ -151,11 +160,13 @@ async def update_space(
     try:
         updated_space = await SpaceService.update_space(db, space, space_data)
         return SpaceResponse.model_validate(updated_space)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新空间失败: {str(e)}",
-        )
+        ) from e
 
 
 @router.delete("/{space_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -184,7 +195,9 @@ async def delete_space(
 
     # 检查是否有关联数据
     if not force:
-        documents = await crud.crud_document.get_by_space(db, space_id=space_id, limit=1)
+        documents = await crud.crud_document.get_by_space(
+            db, space_id=space_id, limit=1
+        )
         if documents:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -194,8 +207,10 @@ async def delete_space(
     # 删除空间
     try:
         await SpaceService.delete_space(db, space)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"删除空间失败: {str(e)}",
-        )
+        ) from e

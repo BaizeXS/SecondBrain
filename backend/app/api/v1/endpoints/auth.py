@@ -1,15 +1,18 @@
 """Authentication endpoints."""
 
+import logging
 from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import AuthService, get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
+
+# Rate limiting will be handled by middleware or service layer
 from app.models.models import User
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -22,7 +25,20 @@ from app.schemas.auth import (
 )
 from app.schemas.users import UserResponse
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def validate_password_strength(password: str) -> None:
+    """Validate password meets security requirements."""
+    if len(password) < 8:
+        raise ValueError("密码长度至少8位")
+    if not any(c.isupper() for c in password):
+        raise ValueError("密码必须包含至少一个大写字母")
+    if not any(c.islower() for c in password):
+        raise ValueError("密码必须包含至少一个小写字母")
+    if not any(c.isdigit() for c in password):
+        raise ValueError("密码必须包含至少一个数字")
 
 
 @router.post(
@@ -30,7 +46,15 @@ router = APIRouter()
 )
 async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)) -> Any:
     """用户注册."""
+
     try:
+        # Validate password strength
+        validate_password_strength(user_data.password)
+
+        # Normalize input
+        user_data.username = user_data.username.lower().strip()
+        user_data.email = user_data.email.lower().strip()
+
         user = await AuthService.create_user(
             db=db,
             username=user_data.username,
@@ -38,26 +62,40 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)) 
             password=user_data.password,
             full_name=user_data.full_name,
         )
+        logger.info(f"New user registered: {user_data.username}")
         return user
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Registration failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"注册失败: {str(e)}",
-        )
+            detail="注册失败，请稍后重试",
+        ) from e
 
 
 @router.post("/login", response_model=Token)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
 ) -> Any:
     """用户登录."""
+    # Log login attempt
+    client_ip = request.client.host if request.client else "unknown"
+
     user = await AuthService.authenticate_user(
         db=db, username=form_data.username, password=form_data.password
     )
 
     if not user:
+        logger.warning(
+            f"Failed login attempt for {form_data.username} from {client_ip}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",
@@ -78,6 +116,8 @@ async def login(
     # 创建刷新令牌
     refresh_token = AuthService.create_refresh_token(data={"sub": str(user.id)})
 
+    logger.info(f"User {user.username} logged in from {client_ip}")
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -87,13 +127,21 @@ async def login(
 
 
 @router.post("/login/json", response_model=Token)
-async def login_json(user_data: UserLogin, db: AsyncSession = Depends(get_db)) -> Any:
+async def login_json(
+    request: Request, user_data: UserLogin, db: AsyncSession = Depends(get_db)
+) -> Any:
     """JSON格式用户登录."""
+    # Log login attempt
+    client_ip = request.client.host if request.client else "unknown"
+
     user = await AuthService.authenticate_user(
         db=db, username=user_data.username, password=user_data.password
     )
 
     if not user:
+        logger.warning(
+            f"Failed login attempt for {user_data.username} from {client_ip}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误"
         )
@@ -111,6 +159,8 @@ async def login_json(user_data: UserLogin, db: AsyncSession = Depends(get_db)) -
 
     # 创建刷新令牌
     refresh_token = AuthService.create_refresh_token(data={"sub": str(user.id)})
+
+    logger.info(f"User {user.username} logged in from {client_ip}")
 
     return {
         "access_token": access_token,
@@ -163,7 +213,7 @@ async def refresh_token(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的刷新令牌"
-        )
+        ) from None
 
 
 @router.post("/logout")
@@ -189,12 +239,21 @@ async def change_password(
             status_code=status.HTTP_400_BAD_REQUEST, detail="旧密码错误"
         )
 
+    # 验证新密码强度
+    try:
+        validate_password_strength(password_data.new_password)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
+
     # 更新密码
     current_user.hashed_password = AuthService.get_password_hash(
         password_data.new_password
     )
     await db.commit()
 
+    logger.info(f"User {current_user.username} changed password")
     return {"message": "密码修改成功"}
 
 
@@ -249,10 +308,19 @@ async def confirm_reset_password(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="用户不存在"
             )
 
+        # 验证新密码强度
+        try:
+            validate_password_strength(confirm_data.new_password)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+            ) from e
+
         # 更新密码
         user.hashed_password = AuthService.get_password_hash(confirm_data.new_password)
         await db.commit()
 
+        logger.info(f"User {user.username} reset password")
         return {"message": "密码重置成功"}
 
     except HTTPException:
@@ -260,4 +328,4 @@ async def confirm_reset_password(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="无效的重置令牌"
-        )
+        ) from None

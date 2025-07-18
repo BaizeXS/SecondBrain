@@ -11,15 +11,14 @@ from app.crud.annotation import crud_annotation
 from app.crud.document import crud_document
 from app.models.models import User
 from app.schemas.annotation import (
-    AnnotationCreate,
-    AnnotationUpdate,
-    AnnotationResponse,
-    AnnotationDetail,
-    AnnotationListResponse,
     AnnotationBatchCreate,
+    AnnotationCreate,
+    AnnotationDetail,
     AnnotationExportRequest,
+    AnnotationListResponse,
+    AnnotationResponse,
     AnnotationStatistics,
-    PDFHighlight,
+    AnnotationUpdate,
     PDFAnnotationData,
 )
 from app.services.annotation_service import annotation_service
@@ -45,7 +44,7 @@ async def get_document_annotations(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="文档不存在或无权访问",
         )
-    
+
     annotations = await crud_annotation.get_by_document(
         db=db,
         document_id=document_id,
@@ -55,10 +54,10 @@ async def get_document_annotations(
         skip=skip,
         limit=limit,
     )
-    
+
     # 简化总数计算
     total = len(annotations)
-    
+
     return AnnotationListResponse(
         annotations=[AnnotationResponse.model_validate(ann) for ann in annotations],
         total=total,
@@ -84,13 +83,13 @@ async def get_annotations_by_pages(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="文档不存在或无权访问",
         )
-    
+
     if start_page > end_page:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="起始页码不能大于结束页码",
         )
-    
+
     annotations = await crud_annotation.get_by_document_pages(
         db=db,
         document_id=document_id,
@@ -98,11 +97,13 @@ async def get_annotations_by_pages(
         start_page=start_page,
         end_page=end_page,
     )
-    
+
     return [AnnotationResponse.model_validate(ann) for ann in annotations]
 
 
-@router.get("/document/{document_id}/pdf/{page_number}", response_model=PDFAnnotationData)
+@router.get(
+    "/document/{document_id}/pdf/{page_number}", response_model=PDFAnnotationData
+)
 async def get_pdf_page_annotations(
     document_id: int,
     page_number: int,
@@ -117,14 +118,14 @@ async def get_pdf_page_annotations(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="文档不存在或无权访问",
         )
-    
+
     pdf_data = await annotation_service.get_pdf_annotations_by_page(
         db=db,
         document_id=document_id,
         user_id=current_user.id,
         page_number=page_number,
     )
-    
+
     return pdf_data
 
 
@@ -144,7 +145,7 @@ async def get_my_annotations(
         skip=skip,
         limit=limit,
     )
-    
+
     return AnnotationListResponse(
         annotations=[AnnotationResponse.model_validate(ann) for ann in annotations],
         total=total,
@@ -169,13 +170,13 @@ async def get_annotation_statistics(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="文档不存在或无权访问",
             )
-    
+
     stats = await crud_annotation.get_statistics(
         db=db,
         user_id=current_user.id,
         document_id=document_id,
     )
-    
+
     return AnnotationStatistics(**stats)
 
 
@@ -192,13 +193,13 @@ async def get_annotation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="标注不存在",
         )
-    
+
     if annotation.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权访问此标注",
         )
-    
+
     # 构建详情响应
     ann_dict = AnnotationResponse.model_validate(annotation).model_dump()
     detail = AnnotationDetail(
@@ -207,11 +208,13 @@ async def get_annotation(
         document_filename=annotation.document.filename if annotation.document else None,
         username=current_user.username,
     )
-    
+
     return detail
 
 
-@router.post("/", response_model=AnnotationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=AnnotationResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_annotation(
     annotation_data: AnnotationCreate,
     db: AsyncSession = Depends(get_db),
@@ -225,17 +228,21 @@ async def create_annotation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="文档不存在或无权访问",
         )
-    
+
     annotation = await crud_annotation.create(
         db=db,
         obj_in=annotation_data,
         user_id=current_user.id,
     )
-    
+
     return AnnotationResponse.model_validate(annotation)
 
 
-@router.post("/batch", response_model=list[AnnotationResponse], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/batch",
+    response_model=list[AnnotationResponse],
+    status_code=status.HTTP_201_CREATED,
+)
 async def batch_create_annotations(
     batch_data: AnnotationBatchCreate,
     db: AsyncSession = Depends(get_db),
@@ -249,7 +256,7 @@ async def batch_create_annotations(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="文档不存在或无权访问",
         )
-    
+
     annotations = await crud_annotation.batch_create(
         db=db,
         document_id=batch_data.document_id,
@@ -259,11 +266,15 @@ async def batch_create_annotations(
             for ann in batch_data.annotations
         ],
     )
-    
+
     return [AnnotationResponse.model_validate(ann) for ann in annotations]
 
 
-@router.post("/pdf/batch", response_model=list[AnnotationResponse], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/pdf/batch",
+    response_model=list[AnnotationResponse],
+    status_code=status.HTTP_201_CREATED,
+)
 async def batch_create_pdf_annotations(
     document_id: int,
     pdf_data: PDFAnnotationData,
@@ -278,20 +289,20 @@ async def batch_create_pdf_annotations(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="文档不存在或无权访问",
         )
-    
+
     if not document.content_type or "pdf" not in document.content_type.lower():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="此文档不是PDF格式",
         )
-    
+
     annotations = await annotation_service.batch_create_pdf_annotations(
         db=db,
         document_id=document_id,
         user_id=current_user.id,
         pdf_data=pdf_data,
     )
-    
+
     return [AnnotationResponse.model_validate(ann) for ann in annotations]
 
 
@@ -310,20 +321,20 @@ async def update_annotation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="标注不存在",
         )
-    
+
     if annotation.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权修改此标注",
         )
-    
+
     # 更新标注
     updated_annotation = await crud_annotation.update(
         db=db,
         db_obj=annotation,
         obj_in=annotation_update,
     )
-    
+
     return AnnotationResponse.model_validate(updated_annotation)
 
 
@@ -341,13 +352,13 @@ async def delete_annotation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="标注不存在",
         )
-    
+
     if annotation.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权删除此标注",
         )
-    
+
     # 删除标注
     await crud_annotation.remove(db=db, id=annotation_id)
 
@@ -367,25 +378,25 @@ async def export_annotations(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"无权访问文档 {doc_id}",
             )
-    
+
     # 目前只支持单文档导出
     if len(request.document_ids) > 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="暂不支持多文档批量导出",
         )
-    
+
     export_data = await annotation_service.export_annotations(
         db=db,
         document_id=request.document_ids[0],
         user_id=current_user.id,
         format=request.format,
     )
-    
+
     if request.format == "markdown":
         return {"format": "markdown", "content": export_data}
     else:
-        return export_data
+        return {"format": request.format, "data": export_data}
 
 
 @router.post("/copy", response_model=list[AnnotationResponse])
@@ -399,19 +410,19 @@ async def copy_annotations(
     # 验证两个文档的访问权限
     source_doc = await crud_document.get(db=db, id=source_document_id)
     target_doc = await crud_document.get(db=db, id=target_document_id)
-    
+
     if not source_doc or source_doc.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="源文档不存在或无权访问",
         )
-    
+
     if not target_doc or target_doc.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="目标文档不存在或无权访问",
         )
-    
+
     # 复制标注
     new_annotations = await crud_annotation.copy_annotations(
         db=db,
@@ -419,5 +430,5 @@ async def copy_annotations(
         target_document_id=target_document_id,
         user_id=current_user.id,
     )
-    
+
     return [AnnotationResponse.model_validate(ann) for ann in new_annotations]

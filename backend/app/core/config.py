@@ -1,9 +1,10 @@
 """Application configuration settings."""
 
+import os
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
     # 服务器配置
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    RELOAD: bool = True  # 是否自动重载（开发时设为True）
+    RELOAD: bool = Field(default=True, description="是否自动重载（开发时设为True）")
 
     # 安全配置
     SECRET_KEY: str = Field(..., description="Secret key for JWT token signing")
@@ -40,8 +41,12 @@ class Settings(BaseSettings):
     MINIO_ENDPOINT: str = Field(
         default="localhost:9000", description="MinIO server endpoint"
     )
-    MINIO_ACCESS_KEY: str = Field(default="minioadmin", description="MinIO access key")
-    MINIO_SECRET_KEY: str = Field(default="minioadmin", description="MinIO secret key")
+    MINIO_ACCESS_KEY: str = Field(
+        default="minioadmin", description="MinIO access key - CHANGE IN PRODUCTION!"
+    )
+    MINIO_SECRET_KEY: str = Field(
+        default="minioadmin", description="MinIO secret key - CHANGE IN PRODUCTION!"
+    )
     MINIO_SECURE: bool = False
     MINIO_BUCKET_NAME: str = "secondbrain"
 
@@ -59,7 +64,7 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str | None = None
     OPENROUTER_SITE_URL: str | None = None  # 您的应用 URL
     OPENROUTER_APP_NAME: str = "SecondBrain"  # 您的应用名称
-    
+
     # AI服务配置 - 传统提供商（保留以便兼容）
     OPENAI_API_KEY: str | None = None
     OPENAI_BASE_URL: str | None = None
@@ -110,17 +115,15 @@ class Settings(BaseSettings):
     LOG_FILE: str | None = None
 
     # 监控配置
-    ENABLE_METRICS: bool = False
+    ENABLE_METRICS: bool = Field(default=False, description="是否启用Prometheus监控")
+    METRICS_PORT: int = Field(default=8001, description="Prometheus监控端口")
 
     # WebSocket配置
     WEBSOCKET_HEARTBEAT_INTERVAL: int = 30
     WEBSOCKET_TIMEOUT: int = 300
 
-    # 监控配置
-    ENABLE_METRICS: bool = True
-    METRICS_PORT: int = 8001
-
     @field_validator("DATABASE_URL", mode="before")
+    @classmethod
     def assemble_db_connection(cls, v: str | None) -> Any:
         if isinstance(v, str):
             return v
@@ -138,22 +141,23 @@ class Settings(BaseSettings):
         """Get max file size in bytes."""
         return self.MAX_FILE_SIZE_MB * 1024 * 1024
 
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         env_file=".env",
+        env_file_encoding="utf-8",
         case_sensitive=True,
         extra="allow",  # 允许额外的环境变量
     )
 
 
 # 全局设置实例
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]
 
 
 # 数据库配置
 DATABASE_CONFIG = {
     "echo": settings.DATABASE_ECHO,
-    "pool_size": 20,
-    "max_overflow": 40,
+    "pool_size": int(os.getenv("DB_POOL_SIZE", "20")),
+    "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "40")),
     "pool_pre_ping": True,
     "pool_recycle": 3600,
 }
@@ -164,53 +168,4 @@ REDIS_CONFIG = {
     "retry_on_timeout": True,
     "socket_keepalive": True,
     "socket_keepalive_options": {},
-}
-
-# AI模型配置映射（已弃用 - 现在使用 OpenRouter 统一管理）
-# 保留此配置仅用于向后兼容
-AI_MODEL_CONFIGS = {
-    "openai": {
-        "api_key": settings.OPENAI_API_KEY,
-        "base_url": settings.OPENAI_BASE_URL,
-        "models": {
-            "chat": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-            "embedding": [
-                "text-embedding-3-large",
-                "text-embedding-3-small",
-                "text-embedding-ada-002",
-            ],
-        },
-    },
-    "anthropic": {
-        "api_key": settings.ANTHROPIC_API_KEY,
-        "models": {
-            "chat": [
-                "claude-3-5-sonnet-20241022",
-                "claude-3-haiku-20240307",
-                "claude-3-opus-20240229",
-            ]
-        },
-    },
-    "google": {
-        "api_key": settings.GOOGLE_API_KEY,
-        "models": {
-            "chat": ["gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash"]
-        },
-    },
-    "deepseek": {
-        "api_key": settings.DEEPSEEK_API_KEY,
-        "base_url": settings.DEEPSEEK_BASE_URL,
-        "models": {
-            "chat": ["deepseek-chat", "deepseek-reasoner"],
-            "reasoning": ["deepseek-reasoner"],
-        },
-    },
-    "ollama": {
-        "base_url": settings.OLLAMA_BASE_URL,
-        "models": {
-            "chat": ["llama2:7b", "mistral:7b", "qwen:7b", "gemma:2b"],
-            "embedding": ["nomic-embed-text"],
-            "code": ["deepseek-coder:6.7b"],
-        },
-    },
 }

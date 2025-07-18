@@ -1,5 +1,6 @@
 """Export endpoints."""
 
+import io
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,17 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_active_user
 from app.core.database import get_db
-from app.crud.note import crud_note
-from app.crud.document import crud_document
-from app.crud.space import crud_space
 from app.crud.conversation import crud_conversation
+from app.crud.document import crud_document
+from app.crud.note import crud_note
+from app.crud.space import crud_space
 from app.models.models import User
 from app.schemas.export import (
-    NoteExportRequest,
-    DocumentExportRequest,
-    SpaceExportRequest,
     ConversationExportRequest,
+    DocumentExportRequest,
     ExportResponse,
+    NoteExportRequest,
+    SpaceExportRequest,
 )
 from app.services.export_service import export_service
 from app.services.note_service import note_service
@@ -48,7 +49,7 @@ async def export_notes(
                 detail=f"无权访问笔记 {note_id}",
             )
         notes.append(note)
-    
+
     # 根据格式导出
     if request.format == "pdf":
         # 导出为PDF
@@ -66,7 +67,7 @@ async def export_notes(
                 versions = await note_service.get_version_history(
                     db, note_id=note.id, limit=10
                 )
-            
+
             # 转换为字典格式
             note_dict = {
                 "id": note.id,
@@ -77,22 +78,24 @@ async def export_notes(
                 "version": note.version,
                 "tags": note.tags or [],
             }
-            
+
             versions_list = []
             for v in versions:
-                versions_list.append({
-                    "version_number": v.version_number,
-                    "created_at": v.created_at.isoformat(),
-                    "change_summary": v.change_summary,
-                })
-            
+                versions_list.append(
+                    {
+                        "version_number": v.version_number,
+                        "created_at": v.created_at.isoformat(),
+                        "change_summary": v.change_summary,
+                    }
+                )
+
             content = await export_service.export_note_to_pdf(
                 note_dict,
                 include_metadata=request.include_metadata,
                 include_versions=request.include_versions,
                 versions=versions_list,
             )
-            
+
             filename = f"{note.title.replace(' ', '_')}.pdf"
             return StreamingResponse(
                 io.BytesIO(content),
@@ -102,7 +105,7 @@ async def export_notes(
                     "Content-Length": str(len(content)),
                 },
             )
-    
+
     elif request.format == "docx":
         # 导出为DOCX
         if request.merge_into_one and len(notes) > 1:
@@ -119,7 +122,7 @@ async def export_notes(
                 versions = await note_service.get_version_history(
                     db, note_id=note.id, limit=10
                 )
-            
+
             # 转换为字典格式
             note_dict = {
                 "id": note.id,
@@ -131,22 +134,24 @@ async def export_notes(
                 "tags": note.tags or [],
                 "author": current_user.username,
             }
-            
+
             versions_list = []
             for v in versions:
-                versions_list.append({
-                    "version_number": v.version_number,
-                    "created_at": v.created_at.isoformat(),
-                    "change_summary": v.change_summary,
-                })
-            
+                versions_list.append(
+                    {
+                        "version_number": v.version_number,
+                        "created_at": v.created_at.isoformat(),
+                        "change_summary": v.change_summary,
+                    }
+                )
+
             content = await export_service.export_note_to_docx(
                 note_dict,
                 include_metadata=request.include_metadata,
                 include_versions=request.include_versions,
                 versions=versions_list,
             )
-            
+
             filename = f"{note.title.replace(' ', '_')}.docx"
             return StreamingResponse(
                 io.BytesIO(content),
@@ -156,7 +161,7 @@ async def export_notes(
                     "Content-Length": str(len(content)),
                 },
             )
-    
+
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -186,7 +191,7 @@ async def export_documents(
                 detail=f"无权访问文档 {doc_id}",
             )
         documents.append(doc)
-    
+
     # 根据格式导出
     if request.format == "pdf":
         # 导出为PDF
@@ -199,13 +204,13 @@ async def export_documents(
         else:
             # 导出单个文档
             doc = documents[0]
-            
+
             # 获取标注
-            annotations = []
+            annotations: list[dict[str, Any]] = []
             if request.include_annotations:
                 # TODO: 获取文档标注
                 pass
-            
+
             # 转换为字典格式
             doc_dict = {
                 "id": doc.id,
@@ -215,13 +220,13 @@ async def export_documents(
                 "created_at": doc.created_at.isoformat(),
                 "file_size": doc.file_size,
             }
-            
+
             content = await export_service.export_document_to_pdf(
                 doc_dict,
                 include_annotations=request.include_annotations,
                 annotations=annotations,
             )
-            
+
             filename = f"{doc.title or doc.filename.split('.')[0]}.pdf"
             return StreamingResponse(
                 io.BytesIO(content),
@@ -231,7 +236,7 @@ async def export_documents(
                     "Content-Length": str(len(content)),
                 },
             )
-    
+
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -253,29 +258,29 @@ async def export_space(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="空间不存在",
         )
-    
+
     # 检查用户权限
-    if space.owner_id != current_user.id:
+    if space.user_id != current_user.id:
         # TODO: 检查协作者权限
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权访问此空间",
         )
-    
+
     # 获取空间内的文档和笔记
     documents = []
     notes = []
-    
+
     if request.include_documents:
         documents = await crud_document.get_by_space(
-            db, space_id=request.space_id, user_id=current_user.id
+            db, space_id=request.space_id
         )
-    
+
     if request.include_notes:
         notes = await crud_note.get_by_space(
             db, space_id=request.space_id, user_id=current_user.id
         )
-    
+
     # 根据格式导出
     if request.format == "pdf":
         # 转换为字典格式
@@ -285,32 +290,36 @@ async def export_space(
             "description": space.description,
             "created_at": space.created_at.isoformat(),
         }
-        
+
         docs_list = []
         for doc in documents:
-            docs_list.append({
-                "id": doc.id,
-                "title": doc.title,
-                "filename": doc.filename,
-                "summary": doc.summary,
-                "content": doc.content if request.include_content else None,
-            })
-        
+            docs_list.append(
+                {
+                    "id": doc.id,
+                    "title": doc.title,
+                    "filename": doc.filename,
+                    "summary": doc.summary,
+                    "content": doc.content if request.include_content else None,
+                }
+            )
+
         notes_list = []
         for note in notes:
-            notes_list.append({
-                "id": note.id,
-                "title": note.title,
-                "content": note.content if request.include_content else None,
-            })
-        
+            notes_list.append(
+                {
+                    "id": note.id,
+                    "title": note.title,
+                    "content": note.content if request.include_content else None,
+                }
+            )
+
         content = await export_service.export_space_to_pdf(
             space_dict,
             docs_list,
             notes_list,
             include_content=request.include_content,
         )
-        
+
         filename = f"{space.name.replace(' ', '_')}_export.pdf"
         return StreamingResponse(
             io.BytesIO(content),
@@ -320,7 +329,7 @@ async def export_space(
                 "Content-Length": str(len(content)),
             },
         )
-    
+
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -350,13 +359,9 @@ async def export_conversations(
                 detail=f"无权访问对话 {conv_id}",
             )
         conversations.append(conv)
-    
+
     # TODO: 实现对话导出
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="对话导出功能正在开发中",
     )
-
-
-# 需要导入io模块
-import io
