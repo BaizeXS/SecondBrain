@@ -1,0 +1,334 @@
+/* src/components/modals/ShareProjectModal.module.css */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+  backdrop-filter: blur(3px);
+}
+
+.modalContent {
+  background-color: #fff;
+  padding: 0;
+  border-radius: 10px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  width: 90%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 25px;
+  border-bottom: 1px solid #e9ecef;
+  background-color: #f8f9fa;
+}
+
+.modalTitle {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #343a40;
+  margin: 0;
+}
+
+.closeButtonTop {
+  background: none;
+  border: none;
+  font-size: 1.6rem;
+  color: #adb5bd;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.closeButtonTop:hover {
+  color: #495057;
+}
+
+.modalBody {
+  padding: 20px 25px;
+  overflow-y: auto;
+}
+
+.section {
+  margin-bottom: 25px;
+}
+
+.sectionTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #495057;
+  margin: 0 0 15px 0;
+}
+
+.shareLevelOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shareLevelOption {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #fff;
+}
+
+.shareLevelOption:hover {
+  border-color: #007bff;
+  background-color: #f8f9fa;
+}
+
+.shareLevelOption.selected {
+  border-color: #007bff;
+  background-color: #e3f2fd;
+  border-width: 2px;
+}
+
+.radioInput {
+  display: none;
+}
+
+.optionContent {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.optionIcon {
+  font-size: 1.2rem;
+  color: #6c757d;
+  margin-right: 12px;
+  width: 24px;
+  text-align: center;
+}
+
+.optionText {
+  flex: 1;
+}
+
+.optionTitle {
+  font-weight: 500;
+  color: #343a40;
+  margin-bottom: 2px;
+}
+
+.optionDescription {
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.groupSharingArea {
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+  background-color: #f8f9fa;
+}
+
+.sharedUsersList {
+  margin-bottom: 15px;
+}
+
+.sharedUserItem {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.userAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #28a745;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-right: 12px;
+}
+
+.userInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.userEmail {
+  font-weight: 500;
+  color: #343a40;
+  font-size: 0.9rem;
+}
+
+.userPermissionControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.userPermission {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+.permissionSelect {
+  padding: 4px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background-color: #fff;
+  color: #495057;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.permissionSelect:focus {
+  border-color: #007bff;
+  outline: none;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.2);
+}
+
+.removeUserButton {
+  background: none;
+  border: none;
+  color: #adb5bd;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s;
+}
+
+.removeUserButton:hover {
+  color: #dc3545;
+}
+
+.addUserSection {
+  margin-bottom: 15px;
+}
+
+.addUserInput {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.emailInput {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+}
+
+.emailInput:focus {
+  border-color: #007bff;
+  outline: none;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.2);
+}
+
+.addUserButton {
+  padding: 8px 16px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.addUserButton:hover {
+  background-color: #0056b3;
+}
+
+.editGroupButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: #fff;
+  color: #007bff;
+  border: 1px solid #007bff;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.editGroupButton:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+.errorMessage {
+  color: #dc3545;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 18px 25px;
+  border-top: 1px solid #e9ecef;
+  background-color: #f8f9fa;
+}
+
+.actionButton {
+  padding: 9px 18px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  border: 1px solid transparent;
+}
+
+.cancelButton {
+  background-color: #fff;
+  color: #495057;
+  border-color: #ced4da;
+}
+
+.cancelButton:hover {
+  background-color: #f1f3f5;
+}
+
+.saveButton {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.saveButton:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
+} 

@@ -1,0 +1,30 @@
+{
+    "loginPage": {
+      "leftPanel": {
+        "title": "加入我们的学习社区",
+        "text": "开启你的学习之旅，发现无限可能"
+      },
+      "welcomeTitle": "欢迎回来",
+      "welcomeSubtitle": "请登录您的账户",
+      "emailLabel": "邮箱地址",
+      "emailPlaceholder": "请输入您的邮箱地址",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "请输入您的密码",
+      "rememberMe": "记住我",
+      "forgotPassword": "忘记密码?",
+      "loginButton": "登录",
+      "loggingInButton": "登录中...",
+      "socialLoginSeparator": "或",
+      "signUpText": "还没有账户?",
+      "signUpLink": "立即注册",
+      "languageButton": "English"
+    },
+    "registerPage": {
+      "formTitle": "创建您的账户",
+      "formSubtitle": "加入 Second Brain，开启您的智能学习之旅。",
+      "registerButton": "立即注册",
+      "registeringButton": "注册中...",
+      "loginLinkText": "已经有账户了?",
+      "loginLink": "立即登录"
+    }
+  }

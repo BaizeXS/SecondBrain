@@ -1,0 +1,570 @@
+/* src/components/layout/RightSidebar.module.css */
+
+.rightSidebar {
+  background-color: var(--sidebar-background-color, #ffffff);
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: var(--header-height, 50px); /* Adjusted to common header height */
+  right: 0;
+  z-index: 99;
+  transition: width 0.25s ease-in-out, opacity 0.25s ease-in-out;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-left: 1px solid var(--border-color, #e9ecef);
+}
+
+.rightSidebar.open {
+  width: var(--right-sidebar-width-open); /* e.g., 320px */
+  height: calc(100vh - var(--header-height, 50px));
+  opacity: 1;
+  visibility: visible;
+  box-shadow: -3px 0px 10px rgba(0,0,0,0.05);
+}
+
+.collapsedPullTab {
+  width: var(--right-sidebar-width-collapsed-tab); /* e.g., 32px */
+  height: 48px;
+  top: calc(var(--header-height, 50px) + 30px);
+  background-color: var(--primary-color-light, #e6f2ff);
+  border: 1px solid var(--primary-color-lighter, #b8d6fb);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: -2px 2px 5px rgba(0,0,0,0.1);
+  font-size: 1.2rem;
+  color: var(--primary-color, #007bff);
+  padding: 0;
+  opacity: 1;
+  visibility: visible;
+  overflow: visible;
+}
+.collapsedPullTab:hover {
+  background-color: var(--primary-color, #007bff);
+  color: #fff;
+}
+.collapsedPullTab svg {
+  /* Inherits color */
+}
+
+.sidebarTopControls {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px 0px 10px;
+  border-bottom: 1px solid var(--border-color-light, #f0f0f0);
+  background-color: var(--sidebar-background-color, #ffffff);
+  flex-shrink: 0;
+  position: relative;
+  min-height: 41px; /* To accommodate tabs and button */
+  box-sizing: border-box;
+}
+
+.collapseButtonInternal {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-color-light, #777);
+  font-size: 1.3rem;
+  padding: 6px;
+  margin-right: auto;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+.collapseButtonInternal:hover {
+  background-color: var(--hover-background-color, #f0f2f5);
+  color: var(--text-color, #333);
+}
+
+.tabsContainerInternal {
+  display: flex;
+  justify-content: flex-start;
+  flex-grow: 1;
+  margin-left: var(--spacing-sm, 8px);
+  overflow-x: auto; /* In case tabs overflow */
+}
+
+.tabButton {
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-color-light, #6c757d);
+  position: relative;
+  margin-right: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0; /* Prevent tabs from shrinking too much */
+}
+.tabButton:last-child { margin-right: 0; }
+.tabButton:hover { color: var(--primary-color, #007bff); }
+.tabButton.activeTab { color: var(--primary-color, #007bff); }
+.tabButton.activeTab::after {
+  content: ''; position: absolute; bottom: -1px; left: 50%;
+  transform: translateX(-50%); width: 70%; max-width: 40px;
+  height: 2.5px; background-color: var(--primary-color, #007bff); border-radius: 2px;
+}
+
+.actionBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color-light, #f0f0f0);
+  background-color: var(--sidebar-background-color, #ffffff);
+  min-height: 48px; /* Consistent height */
+  box-sizing: border-box;
+}
+.actionBarLeft { display: flex; gap: 8px; align-items: center; }
+.actionButtonIcon {
+  background: none; border: 1px solid transparent; color: var(--text-color-light, #6c757d);
+  font-size: 1.1rem; padding: 6px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.actionButtonIcon:hover { background-color: var(--hover-background-color, #f0f2f5); color: var(--text-color, #343a40); }
+.actionButtonIcon:disabled, .actionButtonIcon[disabled] { color: #adb5bd; cursor: not-allowed; background-color: transparent; }
+.actionButtonIcon:disabled:hover, .actionButtonIcon[disabled]:hover { color: #adb5bd; background-color: transparent; }
+.actionButtonIcon.filterActive {
+  color: var(--primary-color, #007bff); /* Or a different color to indicate active filter */
+  background-color: var(--primary-color-lighter, #e6f2ff); /* Light background */
+}
+
+/* 新增：选择模式激活状态 */
+.actionButtonIcon.selectionModeActive {
+  color: var(--primary-color, #007bff);
+  background-color: var(--primary-color-lighter, #e6f2ff);
+  border-color: var(--primary-color, #007bff);
+}
+
+.searchBarContainer {
+  display: flex; align-items: center; width: 100%;
+  background-color: var(--app-background-color, #f4f7f9);
+  border-radius: 6px; padding: 0 0 0 8px; height: 36px; box-sizing: border-box;
+}
+.searchBarIconInternal { margin-right: 6px; color: var(--text-color-placeholder, #909090); font-size: 1rem; flex-shrink: 0; }
+.searchInput {
+  flex-grow: 1; border: none; outline: none; background-color: transparent;
+  padding: 8px 0; font-size: 0.9rem; color: var(--text-color, #333); width: 100%;
+}
+.searchInput::placeholder { color: var(--text-color-placeholder, #909090); }
+.clearSearchButton {
+  background: none; border: none; color: var(--text-color-placeholder, #909090);
+  font-size: 1.2rem; padding: 6px 8px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0;
+}
+.clearSearchButton:hover { color: var(--text-color, #555); background-color: var(--hover-background-color-light, #e9ecef); }
+
+.sidebarContent { padding: 0; flex-grow: 1; overflow-y: auto; background-color: var(--sidebar-background-color, #ffffff); }
+.viewContentWrapper { display: flex; flex-direction: column; height: 100%; }
+.viewContentWrapper > .itemList { flex-grow: 1; overflow-y: auto; padding: 0 15px 15px 15px; margin:0; }
+.viewContentWrapper > .emptyStateText {
+  padding: 20px 15px; text-align: center; color: var(--text-color-light, #6c757d);
+  font-size: 0.9rem; flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 100px;
+}
+
+.itemList { list-style: none; padding: 0; margin: 0; }
+.itemCard {
+  background-color: #fff; border-bottom: 1px solid var(--border-color-light, #f0f0f0);
+  padding: 10px 12px; /* Adjusted padding */ display: flex; align-items: flex-start; /* Changed to flex-start for better multi-line text */
+  cursor: default; /* Default cursor, specific elements can be clickable */
+  transition: background-color 0.15s ease-in-out;
+}
+.itemCard:last-child { border-bottom: none; }
+.itemCard:hover { background-color: var(--hover-background-color, #f8f9fa); }
+
+/* 新增：选择模式样式 */
+.itemCard.selectionMode {
+  padding-left: 8px; /* 为复选框留出空间 */
+}
+
+.itemCard.selectedItem {
+  background-color: var(--primary-color-lighter, #e6f2ff);
+  border-left: 3px solid var(--primary-color, #007bff);
+}
+
+.itemCheckbox {
+  margin-right: 8px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.itemTypeIcon { font-size: 1.3rem; /* Adjusted size */ color: var(--primary-color-dark, #0056b3); /* Darker blue */ margin-right: 10px; margin-top: 2px; flex-shrink: 0; }
+.itemInfo { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
+/* 使整个 info 区域在 NotesListView 中可点击 (用于编辑) */
+.itemCard[title="Click to edit note"] .itemInfo {
+  cursor: pointer;
+}
+.itemCard[title="Click to edit note"] .itemInfo:hover {
+  background-color: rgba(0,0,0,0.02); /* 轻微的悬停效果 */
+  border-radius: 4px;
+}
+
+
+/* --- 新增：可点击的文件名链接样式 --- */
+.itemNameLink {
+  text-decoration: none; /* 移除下划线 */
+  color: inherit; /* 继承 .itemName 的颜色 */
+  display: block; /* 设为块级元素，方便应用样式和 hover */
+  transition: color 0.2s;
+}
+
+.itemNameLink:hover .itemName { /* 悬停时改变内部 span 的颜色 */
+  color: var(--primary-color, #007bff);
+  text-decoration: underline; /* 悬停时显示下划线 */
+}
+.itemName { font-weight: 500; color: var(--text-color, #343a40); font-size: 0.85rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.itemPreview { font-size: 0.75rem; color: var(--text-color-light, #6c757d); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 新增：选择确认栏样式 */
+.selectionConfirmBar {
+  position: sticky;
+  bottom: 0;
+  background-color: #fff;
+  border-top: 1px solid var(--border-color, #e9ecef);
+  padding: 12px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+  z-index: 10;
+}
+
+.selectionCount {
+  font-size: 0.9rem;
+  color: var(--text-color, #343a40);
+  font-weight: 500;
+}
+
+.confirmSelectionButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background-color: var(--primary-color, #007bff);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.confirmSelectionButton:hover {
+  background-color: var(--primary-color-dark, #0056b3);
+}
+
+.confirmSelectionButton svg {
+  font-size: 1rem;
+}
+
+/* 新增：AI生成标签样式 */
+.aiGeneratedTag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.aiTagText {
+  background-color: #10b981; /* 绿色背景 */
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.aiAgentText {
+  font-size: 0.7rem;
+  color: var(--text-color-light, #6c757d);
+  font-style: italic;
+}
+
+/* 新增：创建者信息样式 */
+.creatorInfo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 0.7rem;
+}
+
+.creatorLabel {
+  color: var(--text-color-light, #6c757d);
+  font-weight: 500;
+}
+
+.creatorValue {
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.creatorUser {
+  background-color: #e3f2fd; /* 浅蓝色背景 */
+  color: #1976d2; /* 蓝色文字 */
+}
+
+.creatorAi {
+  background-color: #e8f5e8; /* 浅绿色背景 */
+  color: #2e7d32; /* 绿色文字 */
+}
+
+/* 笔记编辑器样式 */
+.noteEditorWrapper { 
+  padding: 15px; 
+  display: flex; 
+  flex-direction: column; 
+  height: 100%; 
+  box-sizing: border-box; 
+}
+
+.noteTitleInput { 
+  width: 100%; 
+  padding: 10px 12px; 
+  border: 1px solid var(--border-color, #ccc); 
+  border-radius: 4px; 
+  margin-bottom: 10px; 
+  font-size: 1rem; 
+  font-weight: 500; 
+  box-sizing: border-box; 
+}
+
+.noteContentTextarea { 
+  width: 100%; 
+  flex-grow: 1; 
+  padding: 10px 12px; 
+  border: 1px solid var(--border-color, #ccc); 
+  border-radius: 4px; 
+  margin-bottom: 15px; 
+  font-size: 0.95rem; 
+  line-height: 1.5; 
+  resize: vertical; 
+  box-sizing: border-box; 
+  min-height: 150px; 
+}
+
+.editorActions { 
+  display: flex; 
+  justify-content: flex-end; 
+  gap: 10px; 
+  flex-shrink: 0; 
+}
+
+.actionButtonSolid, .actionButtonOutline { 
+  padding: 8px 18px; 
+  border-radius: 4px; 
+  font-size: 0.9rem; 
+  font-weight: 500; 
+  cursor: pointer; 
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s; 
+}
+
+.actionButtonSolid.saveButton { 
+  background-color: var(--primary-color, #007bff); 
+  color: white; 
+  border: 1px solid var(--primary-color, #007bff); 
+}
+
+.actionButtonSolid.saveButton:hover { 
+  background-color: #0056b3; 
+  border-color: #0056b3; 
+}
+
+.actionButtonOutline.cancelButton { 
+  background-color: transparent; 
+  color: var(--text-color-light, #6c757d); 
+  border: 1px solid var(--border-color, #ccc); 
+}
+
+.actionButtonOutline.cancelButton:hover { 
+  background-color: var(--hover-background-color, #f0f0f0); 
+  border-color: #bbb; 
+}
+
+.itemCard[title="Click to edit note"] .itemInfo:hover { 
+  background-color: var(--hover-background-color-light, #e9ecef); 
+  border-radius: 4px;
+}
+
+.deleteItemButton {
+  background: none; 
+  border: none; 
+  color: var(--text-color-light, #aaa); 
+  cursor: pointer;
+  padding: 2px 4px; 
+  margin-left: 8px; 
+  font-size: 1rem; 
+  display: flex; 
+  align-items: center; 
+  border-radius: 4px; 
+  flex-shrink: 0;
+}
+
+.deleteItemButton:hover { 
+  color: var(--danger-color, #dc3545); 
+  background-color: var(--hover-background-color, #f1f1f1); 
+}
+
+/* --- FileSpecificChatView Styles --- */
+.chatInterfaceHeader {
+  padding: 10px 15px;
+  border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
+}
+.chatViewTitle {
+  margin: 0; font-size: 0.9rem; font-weight: 500;
+  color: #495057; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+}
+.chatViewTitle strong { font-weight: 600; color: #212529; }
+
+.chatMessagesAreaSidebar {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 15px; /* 给消息区一些内边距 */
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* 消息之间的垂直间距 */
+}
+
+.chatInputContainerSidebar {
+  padding: 10px;
+  border-top: 1px solid #e9ecef;
+  background-color: #f8f9fa;
+  flex-shrink: 0;
+}
+.sidebarSelectorsWrapper {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sidebarAgentSelector, .sidebarModelSelector {
+  flex-grow: 1; width: 50%; padding: 6px 8px;
+  border: 1px solid #ced4da; border-radius: 6px;
+  background-color: #fff; font-size: 0.85rem;
+}
+
+
+/* --- 核心修改：侧边栏聊天气泡样式 --- */
+
+/* 这是每一行消息的外层容器，负责左右对齐 */
+.sidebarChatMessage {
+  display: flex; /* 让内部的气泡体可以根据 justify-content 对齐 */
+  max-width: 90%; /* 气泡最大宽度 */
+  word-wrap: break-word; /* 允许长单词换行 */
+}
+
+/* 当 .sidebarChatMessage 有 .user 类时 */
+.user {
+  justify-content: flex-end; /* 使气泡在容器内靠右 */
+  align-self: flex-end;    /* 使整个消息行在聊天区域靠右 */
+}
+
+/* 当 .sidebarChatMessage 有 .ai 类时 */
+.ai {
+  justify-content: flex-start; /* 使气泡在容器内靠左 */
+  align-self: flex-start;    /* 使整个消息行在聊天区域靠左 */
+}
+
+/* 这是实际的气泡体 */
+.messageBubbleContent {
+  padding: 8px 12px; /* 紧凑的内边距 */
+  border-radius: 15px; /* 圆角 */
+  line-height: 1.4;
+  font-size: 0.85rem; /* 稍小字体 */
+  box-shadow: 0 1px 1px rgba(0,0,0,0.08); /* 轻微阴影 */
+  display: inline-block; /* 让气泡宽度自适应内容 */
+}
+/* 气泡内的 p 标签样式 */
+.messageBubbleContent p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* 针对用户气泡的特定样式 */
+/* 使用后代选择器：当 .user 类存在时，其内部的 .messageBubbleContent 应用这些样式 */
+.user .messageBubbleContent {
+  background-color: #a2cbf7; /* 淡蓝色 */
+  color: #1c3c5a; /* 深蓝色字体 */
+  border-bottom-right-radius: 4px; /* 形成小尖角 */
+}
+.user .messageBubbleContent p {
+  color: #1c3c5a;
+}
+
+/* 针对AI气泡的特定样式 */
+/* 使用后代选择器：当 .ai 类存在时，其内部的 .messageBubbleContent 应用这些样式 */
+.ai .messageBubbleContent {
+  background-color: #e9ecef; /* 灰色 */
+  color: #343a40;
+  border-bottom-left-radius: 4px; /* 形成小尖角 */
+}
+.ai .messageBubbleContent p {
+  color: #343a40;
+}
+
+/* 空状态提示 */
+.emptyStateText {
+  text-align: center; color: #6c757d; font-size: 0.9rem;
+  margin: auto; /* 在 flex 容器中垂直居中 */
+}
+
+/* 新增：包裹两个下拉框的容器 */
+.sidebarSelectorsWrapper {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* Agent 下拉框样式 */
+.sidebarAgentSelector {
+  flex-grow: 1; /* 让它占据更多空间 */
+  width: 50%; /* 基础宽度 */
+  padding: 6px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background-color: #fff;
+  font-size: 0.85rem;
+}
+
+/* 新增：模型选择下拉框样式 */
+.sidebarModelSelector {
+  flex-grow: 1;
+  width: 50%;
+  padding: 6px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background-color: #fff;
+  font-size: 0.85rem;
+}
+
+.sidebarResizer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 100;
+  background: transparent;
+  transition: background 0.2s;
+}
+.sidebarResizer:hover {
+  background: rgba(0, 123, 255, 0.08);
+}

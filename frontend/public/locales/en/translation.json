@@ -1,0 +1,30 @@
+{
+    "loginPage": {
+      "leftPanel": {
+        "title": "Join our learning community",
+        "text": "Start your learning journey, discover infinite possibilities"
+      },
+      "welcomeTitle": "Welcome back",
+      "welcomeSubtitle": "Please log in to your account",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "Please enter your email address",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Please enter your password",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "loginButton": "Login",
+      "loggingInButton": "Logging in...",
+      "socialLoginSeparator": "or",
+      "signUpText": "Don't have an account?",
+      "signUpLink": "Sign up now",
+      "languageButton": "中文"
+    },
+    "registerPage": {
+      "formTitle": "Create Your Account",
+      "formSubtitle": "Join Second Brain, Start Your Intelligent Learning Journey.",
+      "registerButton": "Register Now",
+      "registeringButton": "Registering...",
+      "loginLinkText": "Already have an account?",
+      "loginLink": "Login Now"
+    }
+  }

@@ -1,0 +1,181 @@
+/* src/pages/FileViewPage.module.css */
+.fileViewPage {
+  display: flex;
+  flex-direction: column; /* 让 wrapper 在垂直方向上居中（如果需要）或从顶部开始 */
+  align-items: center;   /* 水平居中 wrapper */
+  height: 100%;
+  padding: 20px 25px; /* 给整个页面一些内边距 */
+  box-sizing: border-box;
+  overflow-y: auto; /* 如果内容区本身不滚动，让整个页面滚动 */
+}
+
+/* 新的文件内容包装器 */
+.fileContentWrapper {
+  width: 100%;
+  max-width: 900px; /* <<< 限制内容区的最大宽度，提高可读性 */
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  border: 1px solid #e9ecef;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 防止内部阴影等溢出 */
+  height: 100%; /* 让它尝试填满父级高度 */
+}
+
+/* 新的次级头部 */
+.contentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0; /* 防止头部被压缩 */
+}
+
+.fileName {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contentActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.actionButton {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #495057;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.actionButton:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 1.8rem; /* 更大的叉号 */
+  color: #868e96;
+  cursor: pointer;
+  padding: 0 5px;
+  line-height: 1;
+}
+.closeButton:hover {
+  color: #343a40;
+}
+
+/* 文件内容区域 */
+.fileContentArea {
+  flex-grow: 1;
+  padding: 0; /* <<< 移除 padding，让子元素自己控制 */
+  overflow-y: auto;
+  line-height: 1.7;
+  font-size: 1rem;
+  background-color: #f8f9fa; /* 给内容区一个非常浅的背景 */
+}
+
+/* --- 新增样式 --- */
+
+/* 代码预览样式 (prism-react-renderer 会添加 .prism-code class) */
+.codePreview {
+  /* dracula 主题已经设置了背景和颜色，这里可以调整字体、padding等 */
+  font-family: 'Fira Code', 'Source Code Pro', Consolas, Monaco, monospace;
+  font-size: 14px; /* 推荐用 px 作为代码字体单位 */
+  padding: 20px !important; /* 使用 !important 覆盖主题的内联样式 */
+  margin: 0 !important; /* 覆盖 pre 标签的默认 margin */
+  border-radius: 0 0 8px 8px; /* 确保底部圆角与容器一致 */
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-x: auto;
+}
+.codePreview .token-line {
+  padding-right: 20px; /* 给右边留出空间，防止滚动条遮挡代码 */
+}
+.lineNumber { /* 行号样式 */
+  display: inline-block;
+  width: 2.5em; /* 留出行号的空间 */
+  padding-right: 1em;
+  text-align: right;
+  opacity: 0.5;
+  user-select: none; /* 防止用户意外选中行号 */
+}
+
+/* 纯文本预览样式 */
+.textPreview {
+  padding: 20px;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+}
+
+/* PDF 预览器容器 */
+.pdfViewerContainer {
+  display: flex;
+  flex-direction: column; /* 让 PDF 页面垂直排列 */
+  align-items: center;
+  padding: 20px 0;
+  gap: 15px; /* 页面之间的间距 */
+  background-color: #e9ecef; /* PDF 查看器背景 */
+}
+/* react-pdf 生成的页面 canvas 通常需要一些阴影使其看起来像纸张 */
+.pdfViewerContainer .react-pdf__Page__canvas {
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* Markdown 预览样式 */
+.markdownPreview {
+  max-width: 800px;
+  margin: 20px auto; /* 上下左右居中 */
+  background-color: #fff;
+  padding: 30px 40px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  color: #333;
+}
+.markdownPreview h1, .markdownPreview h2, .markdownPreview h3 {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.3em;
+}
+.markdownPreview code {
+  background-color: #eee;
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  border-radius: 3px;
+}
+.markdownPreview pre > code {
+  padding: 0;
+  margin: 0;
+  font-size: 100%;
+  word-break: normal;
+  white-space: pre;
+  background: transparent;
+  border: 0;
+}
+.markdownPreview pre {
+  padding: 16px;
+  overflow: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  background-color: #f6f8fa;
+  border-radius: 3px;
+}

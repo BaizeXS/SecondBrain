@@ -1,0 +1,164 @@
+/* src/components/chat/ChatInputInterface.module.css */
+.chatInputInterfaceSection { /* Was .chatInputSection in HomePage */
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 700px; /* Consistent max width */
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+  padding: var(--spacing-md, 16px);
+  box-sizing: border-box;
+  margin: 0 auto; /* Center it if its parent doesn't */
+}
+
+.selectedFilesPreviewArea {
+  width: 100%;
+  /* max-width: 700px; /* Already constrained by parent */
+  margin-bottom: var(--spacing-md, 16px);
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-md, 12px);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-sm, 8px);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color, #ccc) transparent;
+}
+.selectedFilesPreviewArea::-webkit-scrollbar { height: 6px; }
+.selectedFilesPreviewArea::-webkit-scrollbar-track { background: transparent; }
+.selectedFilesPreviewArea::-webkit-scrollbar-thumb { background-color: var(--border-color-light, #e0e0e0); border-radius: 10px; border: 1px solid transparent; }
+.selectedFilesPreviewArea::-webkit-scrollbar-thumb:hover { background-color: var(--border-color, #ccc); }
+
+.filePreviewCard {
+  background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px;
+  padding: 10px 12px; display: flex; align-items: center; position: relative;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: auto; min-width: 200px;
+  max-width: 280px; flex-shrink: 0;
+}
+
+/* 新增：笔记预览卡片样式 */
+.notePreviewCard {
+  background-color: #fff3cd; /* 浅黄色背景 */
+  border-color: #ffeaa7;
+}
+
+.notePreviewCard .filePreviewIcon {
+  color: #f39c12; /* 橙色图标 */
+}
+
+.filePreviewIcon { font-size: 1.8rem; color: var(--primary-color, #007bff); margin-right: 12px; flex-shrink: 0; }
+.filePreviewInfo { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+.filePreviewName { font-weight: 500; font-size: 0.9rem; color: var(--text-color, #333); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.filePreviewMeta { font-size: 0.75rem; color: var(--text-color-light, #666); }
+.filePreviewRemoveBtn {
+  background: none; border: none; color: var(--text-color-light, #888);
+  font-size: 1.1rem; padding: 4px; cursor: pointer; position: absolute;
+  top: 8px; right: 8px; display: none; line-height: 1; border-radius: 50%;
+}
+.filePreviewCard:hover .filePreviewRemoveBtn { display: block; }
+.filePreviewRemoveBtn:hover { color: var(--danger-color, #dc3545); background-color: #f0f0f0; }
+
+.chatInputWrapper {
+  display: flex; align-items: flex-start; border: 1px solid var(--border-color, #ccc);
+  border-radius: 12px; padding: 8px 10px; background-color: #fff;
+  margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.chatIconButtonTopLeft {
+  background: none; border: none; padding: 8px; margin-right: 8px;
+  color: var(--text-color-light, #777); font-size: 1.3rem; cursor: pointer;
+  align-self: flex-start; margin-top: 2px;
+}
+.chatIconButtonTopLeft:hover { color: var(--primary-color, #007bff); }
+
+.chatTextarea {
+  flex-grow: 1; border: none; outline: none; padding: 8px 5px;
+  font-size: 1rem; resize: none; min-height: 24px; max-height: 150px;
+  overflow-y: hidden; line-height: 1.5; box-sizing: border-box; background-color: transparent;
+}
+
+.chatIconButton { /* General icon button style, can be base for sendButton */
+  background: none; border: none; padding: 8px; margin: 0 5px;
+  color: var(--text-color-light, #777); font-size: 1.3rem; cursor: pointer;
+  display: flex; align-items: center;
+}
+.chatIconButton:hover { color: var(--primary-color, #007bff); }
+
+.sendButton { /* Specifics for the send button */
+  margin-left: 8px; color: var(--primary-color, #007bff) !important;
+  font-size: 1.5rem !important; align-self: flex-end; margin-bottom: 2px;
+}
+.sendButton:hover { color: #0056b3 !important; }
+
+.chatInputActions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.actionGroupLeft, .actionGroupRight { display: flex; align-items: center; gap: 10px; }
+.modelSelector {
+  padding: 6px 10px; border: 1px solid var(--border-color, #ccc); border-radius: 4px;
+  font-size: 0.9rem; background-color: #fff; min-width: 120px;
+}
+.inputActionButton {
+  background: none; border: 1px solid transparent; padding: 8px;
+  color: var(--text-color-light, #666); font-size: 1.2rem; cursor: pointer;
+  border-radius: 4px; display: flex; align-items: center;
+}
+.inputActionButton:hover { background-color: var(--hover-background-color, #f0f0f0); color: var(--text-color, #333); }
+.deepSearchActive { color: var(--primary-color, #007bff) !important; background-color: #e6f7ff !important; }
+
+/* 新增：AI生成标签样式 */
+.aiGeneratedTag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.aiTagText {
+  background-color: #10b981; /* 绿色背景 */
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.aiAgentText {
+  font-size: 0.6rem;
+  color: var(--text-color-light, #6c757d);
+  font-style: italic;
+}
+
+/* 新增：创建者信息样式 */
+.creatorInfo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 0.6rem;
+}
+
+.creatorLabel {
+  color: var(--text-color-light, #6c757d);
+  font-weight: 500;
+}
+
+.creatorValue {
+  font-weight: 600;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.creatorUser {
+  background-color: #e3f2fd; /* 浅蓝色背景 */
+  color: #1976d2; /* 蓝色文字 */
+}
+
+.creatorAi {
+  background-color: #e8f5e8; /* 浅绿色背景 */
+  color: #2e7d32; /* 绿色文字 */
+}
+
+/* 聊天输入框操作区域 */
