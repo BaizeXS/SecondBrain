@@ -1,76 +1,171 @@
 // src/contexts/AuthContext.js
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { authAPI, userAPI } from '../services/apiService';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false); // 初始为 false
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // <--- 初始为 true
+  const [loading, setLoading] = useState(true);
+
+  // 检查token是否有效
+  const checkAuthStatus = useCallback(async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // 尝试获取当前用户信息来验证token
+      const userData = await userAPI.getCurrentUser();
+      setIsAuthenticated(true);
+      setUser(userData);
+    } catch (error) {
+      console.error('Token validation failed:', error);
+      // Token无效，清除本地存储
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      setIsAuthenticated(false);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    console.log("AuthContext: Checking local storage for authentication...");
-    const storedAuth = localStorage.getItem('isAuthenticated') === 'true';
-    const storedUser = localStorage.getItem('user');
+    checkAuthStatus();
+  }, [checkAuthStatus]);
 
-    if (storedAuth) {
-      console.log("AuthContext: User was authenticated from local storage.");
+  const login = useCallback(async (username, password) => {
+    try {
+      setLoading(true);
+      const response = await authAPI.login({ username, password });
+      
+      // 保存用户信息到localStorage
+      localStorage.setItem('user', JSON.stringify(response.user || { username }));
+      
       setIsAuthenticated(true);
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (e) {
-          console.error("AuthContext: Failed to parse user from local storage", e);
-          localStorage.removeItem('user'); // 清除无效的用户数据
-        }
-      }
-    } else {
-      console.log("AuthContext: No authentication found in local storage.");
+      setUser(response.user || { username });
+      
+      console.log("AuthContext: User logged in successfully.");
+      return { success: true, user: response.user };
+    } catch (error) {
+      console.error("AuthContext: Login failed.", error);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
     }
-    setLoading(false); // <--- 检查完毕后，设置 loading 为 false
-  }, []); // 空依赖数组，只在组件挂载时运行一次
-
-  const login = useCallback(async (email, password) => {
-    // ... (你的登录逻辑，它会 setIsAuthenticated(true) 和 setLoading(false) 如果需要)
-    // 确保登录成功后 setIsAuthenticated(true)
-    // 在这个模拟版本中，我们假设登录成功后 localStorage 会被设置，下次刷新时 useEffect 会处理
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        if (email === 'lchhku@hku.com' && password === '123456') {
-          const userData = { id: 'user1', username: 'lchhku', email: 'lchhku@hku.com' };
-          localStorage.setItem('isAuthenticated', 'true');
-          localStorage.setItem('user', JSON.stringify(userData));
-          setIsAuthenticated(true);
-          setUser(userData);
-          console.log("AuthContext: User logged in.");
-          resolve(true);
-        } else {
-          console.log("AuthContext: Login failed.");
-          resolve(false);
-        }
-      }, 500);
-    });
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('user');
-    setIsAuthenticated(false);
-    setUser(null);
-    console.log("AuthContext: User logged out.");
-    // 导航到登录页通常在组件层面处理，比如在 Header 的登出按钮点击后
+  const register = useCallback(async (userData) => {
+    try {
+      setLoading(true);
+      const response = await authAPI.register(userData);
+      
+      // 注册成功后自动登录
+      const loginResponse = await authAPI.login({
+        username: userData.username,
+        password: userData.password
+      });
+      
+      localStorage.setItem('user', JSON.stringify(response));
+      setIsAuthenticated(true);
+      setUser(response);
+      
+      console.log("AuthContext: User registered and logged in successfully.");
+      return { success: true, user: response };
+    } catch (error) {
+      console.error("AuthContext: Registration failed.", error);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // 如果初始认证状态还在加载中，可以显示一个加载界面或什么都不渲染
-  // 这可以防止在 loading 为 true 时子组件（如路由）过早渲染和判断
+  const logout = useCallback(async () => {
+    try {
+      await authAPI.logout();
+    } catch (error) {
+      console.error("Logout API call failed:", error);
+    } finally {
+      // 无论API调用是否成功，都清除本地状态
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      setIsAuthenticated(false);
+      setUser(null);
+      console.log("AuthContext: User logged out.");
+    }
+  }, []);
+
+  const refreshToken = useCallback(async () => {
+    try {
+      const response = await authAPI.refreshToken();
+      console.log("AuthContext: Token refreshed successfully.");
+      return { success: true };
+    } catch (error) {
+      console.error("AuthContext: Token refresh failed.", error);
+      // 刷新失败，清除认证状态
+      await logout();
+      return { success: false, error: error.message };
+    }
+  }, [logout]);
+
+  const changePassword = useCallback(async (oldPassword, newPassword) => {
+    try {
+      await authAPI.changePassword({
+        old_password: oldPassword,
+        new_password: newPassword
+      });
+      console.log("AuthContext: Password changed successfully.");
+      return { success: true };
+    } catch (error) {
+      console.error("AuthContext: Password change failed.", error);
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (email) => {
+    try {
+      await authAPI.resetPassword(email);
+      console.log("AuthContext: Password reset email sent.");
+      return { success: true };
+    } catch (error) {
+      console.error("AuthContext: Password reset failed.", error);
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  const confirmResetPassword = useCallback(async (token, newPassword) => {
+    try {
+      await authAPI.confirmResetPassword(token, newPassword);
+      console.log("AuthContext: Password reset confirmed successfully.");
+      return { success: true };
+    } catch (error) {
+      console.error("AuthContext: Password reset confirmation failed.", error);
+      return { success: false, error: error.message };
+    }
+  }, []);
+
   if (loading) {
-    // 你可以返回一个全局的加载指示器，或者 null
-    // 返回 null 会导致页面暂时空白，直到 loading 变为 false
-    return <div>Loading Application...</div>; // 或者一个更美观的 Spinner
+    return <div>Loading Application...</div>;
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, loading }}>
+    <AuthContext.Provider value={{ 
+      isAuthenticated, 
+      user, 
+      login, 
+      logout, 
+      register,
+      refreshToken,
+      changePassword,
+      resetPassword,
+      confirmResetPassword,
+      loading 
+    }}>
       {children}
     </AuthContext.Provider>
   );

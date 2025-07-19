@@ -1,5 +1,6 @@
 // src/contexts/ProjectContext.js
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { spaceAPI, documentAPI, noteAPI } from '../services/apiService';
 import { FiMessageSquare, FiBriefcase, FiEdit2, FiTerminal, FiCpu, FiFeather } from 'react-icons/fi'; // For Agent Icons
 
 const ProjectContext = createContext();
@@ -36,113 +37,259 @@ export const ProjectProvider = ({ children }) => {
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
   const [nextColorIndex, setNextColorIndex] = useState(0);
 
-  useEffect(() => {
+  // 从后端加载空间列表
+  const loadProjects = useCallback(async () => {
     try {
-      const storedProjects = localStorage.getItem('neuroCoreProjects');
-      const storedColorIdx = parseInt(localStorage.getItem('projectColorIndex') || '0', 10);
-      const initialProjects = storedProjects ? JSON.parse(storedProjects) : defaultInitialProjects;
-      setProjects(initialProjects);
-      setNextColorIndex(isNaN(storedColorIdx) ? initialProjects.length % projectColors.length : storedColorIdx);
-      if (!storedProjects) localStorage.setItem('neuroCoreProjects', JSON.stringify(defaultInitialProjects));
+      setLoadingProjects(true);
+      const response = await spaceAPI.getSpaces({ limit: 100 });
+      const spaces = response.spaces || [];
+      
+      // 将后端空间数据转换为前端项目格式
+      const convertedProjects = spaces.map((space, index) => ({
+        id: space.id.toString(),
+        name: space.name,
+        description: space.description || '',
+        iconColor: projectColors[index % projectColors.length],
+        createdAt: space.created_at,
+        updatedAt: space.updated_at,
+        files: [], // 文档将在需要时单独加载
+        notes: [], // 笔记将在需要时单独加载
+        sessions: [], // 聊天会话将在需要时单独加载
+        fileChats: {},
+        sharing: {
+          isShared: space.is_public,
+          shareLevel: space.user_id ? 'owner' : 'collaborator',
+          sharedWith: [],
+          permissions: 'read',
+          sharedAt: space.updated_at,
+          sharedBy: space.user_id
+        },
+        // 后端字段映射
+        spaceId: space.id,
+        isPublic: space.is_public,
+        tags: space.tags || [],
+        userId: space.user_id,
+      }));
+      
+      setProjects(convertedProjects);
+      setNextColorIndex(convertedProjects.length % projectColors.length);
     } catch (error) {
-      console.error("ProjectContext: Error loading from localStorage", error);
-      setProjects(defaultInitialProjects);
+      console.error("ProjectContext: Error loading spaces from backend", error);
+      setProjects([]);
+    } finally {
+      setLoadingProjects(false);
     }
-    setLoadingProjects(false);
   }, []);
 
   useEffect(() => {
-    if (!loadingProjects) {
-      localStorage.setItem('neuroCoreProjects', JSON.stringify(projects));
-      localStorage.setItem('projectColorIndex', nextColorIndex.toString());
-    }
-  }, [projects, nextColorIndex, loadingProjects]);
+    loadProjects();
+  }, [loadProjects]);
 
   const openCreateProjectModal = useCallback(() => setIsCreateProjectModalOpen(true), []);
   const closeCreateProjectModal = useCallback(() => setIsCreateProjectModalOpen(false), []);
 
-  const addProject = useCallback((projectDetails) => {
-    const newProject = {
-      id: `proj-${Date.now()}`,
-      name: projectDetails.name,
-      description: projectDetails.description || '',
-      iconColor: projectColors[nextColorIndex % projectColors.length],
-      createdAt: new Date().toISOString(),
-      files: (projectDetails.files || []).map(file => ({
-        id: `file-${file.name}-${Date.now()}`, name: file.name, type: file.type, size: file.size, uploadedAt: new Date().toISOString(),
-      })),
-      notes: projectDetails.notes || [],
-      sessions: projectDetails.chatHistory && projectDetails.chatHistory.length > 0
-        ? [{
-          sessionId: `session-${Date.now()}`, startTime: new Date().toISOString(), messages: projectDetails.chatHistory,
-          aiSummary: `Initial discussion in "${projectDetails.name.substring(0, 20)}..."`,
-          sessionFiles: (projectDetails.files || []).map(f => ({ id: `file-${f.name}-${Date.now()}`, name: f.name }))
-        }]
-        : [],
-      fileChats: {},
-      sharing: {
-        isShared: false,
-        shareLevel: 'owner',
-        sharedWith: [],
-        permissions: 'read',
-        sharedAt: null,
-        sharedBy: null
-      },
-    };
-    setProjects(prev => [...prev, newProject]);
-    setNextColorIndex(prev => (prev + 1) % projectColors.length);
-    closeCreateProjectModal();
-    return newProject;
+  const addProject = useCallback(async (projectDetails) => {
+    try {
+      const spaceData = {
+        name: projectDetails.name,
+        description: projectDetails.description || '',
+        is_public: false,
+        tags: projectDetails.tags || [],
+      };
+
+      const newSpace = await spaceAPI.createSpace(spaceData);
+      
+      const newProject = {
+        id: newSpace.id.toString(),
+        name: newSpace.name,
+        description: newSpace.description || '',
+        iconColor: projectColors[nextColorIndex % projectColors.length],
+        createdAt: newSpace.created_at,
+        updatedAt: newSpace.updated_at,
+        files: [],
+        notes: [],
+        sessions: [],
+        fileChats: {},
+        sharing: {
+          isShared: newSpace.is_public,
+          shareLevel: 'owner',
+          sharedWith: [],
+          permissions: 'read',
+          sharedAt: newSpace.created_at,
+          sharedBy: newSpace.user_id
+        },
+        spaceId: newSpace.id,
+        isPublic: newSpace.is_public,
+        tags: newSpace.tags || [],
+        userId: newSpace.user_id,
+      };
+
+      setProjects(prev => [...prev, newProject]);
+      setNextColorIndex(prev => (prev + 1) % projectColors.length);
+      closeCreateProjectModal();
+      return newProject;
+    } catch (error) {
+      console.error("ProjectContext: Error creating space", error);
+      throw error;
+    }
   }, [nextColorIndex, closeCreateProjectModal]);
 
-  const getProjectById = useCallback((projectId) => projects.find(p => p.id === projectId), [projects]);
+  const getProjectById = useCallback((projectId) => {
+    return projects.find(p => p.id === projectId);
+  }, [projects]);
 
-  const deleteProject = useCallback((projectIdToDelete) => {
-    setProjects(prev => prev.filter(project => project.id !== projectIdToDelete));
+  const deleteProject = useCallback(async (projectIdToDelete) => {
+    try {
+      await spaceAPI.deleteSpace(parseInt(projectIdToDelete));
+      setProjects(prev => prev.filter(project => project.id !== projectIdToDelete));
+    } catch (error) {
+      console.error("ProjectContext: Error deleting space", error);
+      throw error;
+    }
   }, []);
 
-  const updateProject = useCallback((projectId, partialUpdatedData) => {
-    setProjects(prevProjects =>
-      prevProjects.map(p => {
-        if (p.id === projectId) {
-          const updatedProject = { ...p, ...partialUpdatedData, updatedAt: new Date().toISOString() };
-          // Ensure arrays are new references if they are updated
-          if (partialUpdatedData.files) updatedProject.files = [...partialUpdatedData.files];
-          if (partialUpdatedData.notes) updatedProject.notes = [...partialUpdatedData.notes];
-          if (partialUpdatedData.sessions) updatedProject.sessions = [...partialUpdatedData.sessions];
-          if (partialUpdatedData.fileChats) updatedProject.fileChats = { ...partialUpdatedData.fileChats };
-          if (partialUpdatedData.sharing) updatedProject.sharing = { ...partialUpdatedData.sharing };
-          return updatedProject;
-        }
-        return p;
-      })
-    );
+  const updateProject = useCallback(async (projectId, partialUpdatedData) => {
+    try {
+      const spaceData = {
+        name: partialUpdatedData.name,
+        description: partialUpdatedData.description,
+        is_public: partialUpdatedData.isPublic,
+        tags: partialUpdatedData.tags,
+      };
+
+      const updatedSpace = await spaceAPI.updateSpace(parseInt(projectId), spaceData);
+      
+      setProjects(prevProjects =>
+        prevProjects.map(p => {
+          if (p.id === projectId) {
+            return {
+              ...p,
+              ...partialUpdatedData,
+              name: updatedSpace.name,
+              description: updatedSpace.description,
+              updatedAt: updatedSpace.updated_at,
+              isPublic: updatedSpace.is_public,
+              tags: updatedSpace.tags || [],
+            };
+          }
+          return p;
+        })
+      );
+    } catch (error) {
+      console.error("ProjectContext: Error updating space", error);
+      throw error;
+    }
   }, []);
 
-  const updateProjectSharing = useCallback((projectId, sharingData) => {
-    setProjects(prevProjects =>
-      prevProjects.map(p => {
-        if (p.id === projectId) {
-          return {
-            ...p,
-            sharing: {
-              ...p.sharing,
-              ...sharingData,
-              sharedAt: sharingData.isShared ? new Date().toISOString() : null,
-              sharedBy: sharingData.isShared ? 'current-user' : null
-            }
-          };
-        }
-        return p;
-      })
-    );
+  const updateProjectSharing = useCallback(async (projectId, sharingData) => {
+    try {
+      const spaceData = {
+        is_public: sharingData.isShared,
+      };
+
+      await spaceAPI.updateSpace(parseInt(projectId), spaceData);
+      
+      setProjects(prevProjects =>
+        prevProjects.map(p => {
+          if (p.id === projectId) {
+            return {
+              ...p,
+              sharing: {
+                ...p.sharing,
+                ...sharingData,
+                sharedAt: sharingData.isShared ? new Date().toISOString() : null,
+                sharedBy: sharingData.isShared ? 'current-user' : null
+              },
+              isPublic: sharingData.isShared,
+            };
+          }
+          return p;
+        })
+      );
+    } catch (error) {
+      console.error("ProjectContext: Error updating space sharing", error);
+      throw error;
+    }
+  }, []);
+
+  // 加载项目的文档
+  const loadProjectDocuments = useCallback(async (projectId) => {
+    try {
+      const response = await documentAPI.getDocuments({ space_id: parseInt(projectId) });
+      const documents = response.documents || [];
+      
+      const files = documents.map(doc => ({
+        id: doc.id.toString(),
+        name: doc.title || doc.filename,
+        type: doc.content_type,
+        size: doc.file_size,
+        uploadedAt: doc.created_at,
+        url: `/documents/${doc.id}`,
+        content: doc.content,
+        processingStatus: doc.processing_status,
+      }));
+
+      setProjects(prevProjects =>
+        prevProjects.map(p => {
+          if (p.id === projectId) {
+            return { ...p, files };
+          }
+          return p;
+        })
+      );
+
+      return files;
+    } catch (error) {
+      console.error("ProjectContext: Error loading documents", error);
+      return [];
+    }
+  }, []);
+
+  // 加载项目的笔记
+  const loadProjectNotes = useCallback(async (projectId) => {
+    try {
+      const response = await noteAPI.getNotes({ space_id: parseInt(projectId) });
+      const notes = response.notes || [];
+      
+      const convertedNotes = notes.map(note => ({
+        id: note.id.toString(),
+        name: note.title,
+        preview: note.content?.substring(0, 100) || '',
+        content: note.content,
+        createdAt: note.created_at,
+        updatedAt: note.updated_at,
+      }));
+
+      setProjects(prevProjects =>
+        prevProjects.map(p => {
+          if (p.id === projectId) {
+            return { ...p, notes: convertedNotes };
+          }
+          return p;
+        })
+      );
+
+      return convertedNotes;
+    } catch (error) {
+      console.error("ProjectContext: Error loading notes", error);
+      return [];
+    }
   }, []);
 
   const value = {
-    projects, loadingProjects,
-    addProject, getProjectById, deleteProject, updateProject,
+    projects, 
+    loadingProjects,
+    addProject, 
+    getProjectById, 
+    deleteProject, 
+    updateProject,
     updateProjectSharing,
-    isCreateProjectModalOpen, openCreateProjectModal, closeCreateProjectModal,
+    loadProjectDocuments,
+    loadProjectNotes,
+    isCreateProjectModalOpen, 
+    openCreateProjectModal, 
+    closeCreateProjectModal,
+    refreshProjects: loadProjects,
   };
 
   return (
