@@ -133,6 +133,7 @@ async def get_note(
 ) -> NoteDetail:
     """获取笔记详情."""
     note = await crud_note.get(db=db, id=note_id)
+
     if not note:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -147,9 +148,17 @@ async def get_note(
 
     # 构建详情响应
     note_dict = NoteResponse.model_validate(note).model_dump()
+
+    # 获取 space 名称
+    space_name = None
+    if note.space_id:
+        space = await crud.crud_space.get(db, id=note.space_id)
+        if space:
+            space_name = space.name
+
     note_detail = NoteDetail(
         **note_dict,
-        space_name=note.space.name if note.space else None,
+        space_name=space_name,
         username=current_user.username,
     )
 
@@ -253,6 +262,7 @@ async def delete_note(
     """删除笔记."""
     # 检查笔记是否存在及权限
     note = await crud_note.get(db=db, id=note_id)
+
     if not note:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -265,13 +275,15 @@ async def delete_note(
             detail="无权删除此笔记",
         )
 
+    # 更新Space的笔记计数
+    if note.space_id:
+        space = await crud.crud_space.get(db, id=note.space_id)
+        if space:
+            space.note_count -= 1
+            await db.commit()
+
     # 删除笔记
     await crud_note.remove(db=db, id=note_id)
-
-    # 更新Space的笔记计数
-    if note.space:
-        note.space.note_count -= 1
-        await db.commit()
 
 
 @router.post(

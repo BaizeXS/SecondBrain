@@ -12,7 +12,9 @@ from app.services.search_service import SearchService
 @pytest.fixture
 def search_service():
     """创建搜索服务实例."""
-    return SearchService()
+    service = SearchService()
+    service.perplexity_api_key = "test-api-key"  # 设置测试API密钥
+    return service
 
 
 @pytest.fixture
@@ -57,7 +59,7 @@ class TestSearch:
     async def test_search_with_api_key(self, search_service, mock_user, mock_perplexity_response):
         """测试有 API 密钥时的搜索."""
         # Mock API 调用
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch('app.services.search_service.httpx.AsyncClient') as mock_client:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json = Mock(return_value=mock_perplexity_response)
@@ -78,7 +80,7 @@ class TestSearch:
             # 验证结果
             assert isinstance(result, SearchResponse)
             assert result.query == "Python 编程"
-            assert len(result.results) == 2
+            assert len(result.results) == 2  # mock响应中有2个citations
             assert result.total_results == 2
             assert result.summary is not None
             assert "Python 编程" in result.summary

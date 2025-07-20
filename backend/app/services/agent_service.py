@@ -3,7 +3,7 @@
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from app.services.ai_service import AIService
@@ -216,7 +216,7 @@ class AgentService:
                 "status": "completed",
                 "output": output_data,
                 "processing_time": processing_time,
-                "completed_at": datetime.utcnow(),
+                "completed_at": datetime.now(UTC),
                 "metadata": {
                     "model_used": model,
                     "token_count": getattr(response, 'token_count', 0),
@@ -233,7 +233,7 @@ class AgentService:
                 "status": "failed",
                 "error": str(e),
                 "processing_time": processing_time,
-                "completed_at": datetime.utcnow(),
+                "completed_at": datetime.now(UTC),
             }
 
     async def execute_agent_async(self, agent: AgentTemplate, execution: Any, db: Any) -> None:
@@ -265,7 +265,7 @@ class AgentService:
 
             execution.status = "failed"
             execution.error_message = str(e)
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = datetime.now(UTC)
 
             await db.commit()
 
@@ -318,7 +318,7 @@ class AgentService:
         base_output: dict[str, Any] = {
             "content": content,
             "type": agent_type,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
         # 尝试提取结构化信息

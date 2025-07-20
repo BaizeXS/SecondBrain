@@ -303,15 +303,20 @@ class TestGetNote:
     @pytest.mark.asyncio
     async def test_get_note_success(self, mock_db, mock_user, mock_note):
         """Test getting a note successfully."""
+        mock_space = MagicMock()
+        mock_space.name = "Test Space"
+
         with patch("app.crud.note.crud_note.get") as mock_get:
             mock_get.return_value = mock_note
+            with patch("app.crud.crud_space.get") as mock_get_space:
+                mock_get_space.return_value = mock_space
 
-            result = await get_note(note_id=1, db=mock_db, current_user=mock_user)
+                result = await get_note(note_id=1, db=mock_db, current_user=mock_user)
 
-            assert result.id == 1
-            assert result.title == "Test Note"
-            assert result.space_name == "Test Space"
-            assert result.username == "testuser"
+                assert result.id == 1
+                assert result.title == "Test Note"
+                assert result.space_name == "Test Space"
+                assert result.username == "testuser"
 
     @pytest.mark.asyncio
     async def test_get_note_not_found(self, mock_db, mock_user):
@@ -504,15 +509,21 @@ class TestDeleteNote:
     @pytest.mark.asyncio
     async def test_delete_note_success(self, mock_db, mock_user, mock_note):
         """Test deleting a note successfully."""
+        mock_space = MagicMock()
+        mock_space.note_count = 5
+
         with patch("app.crud.note.crud_note.get") as mock_get:
             mock_get.return_value = mock_note
-            with patch("app.crud.note.crud_note.remove") as mock_remove:
-                mock_db.commit = AsyncMock()
+            with patch("app.crud.crud_space.get") as mock_get_space:
+                mock_get_space.return_value = mock_space
+                with patch("app.crud.note.crud_note.remove") as mock_remove:
+                    mock_db.commit = AsyncMock()
 
-                await delete_note(note_id=1, db=mock_db, current_user=mock_user)
+                    await delete_note(note_id=1, db=mock_db, current_user=mock_user)
 
-                mock_remove.assert_called_once_with(db=mock_db, id=1)
-                assert mock_db.commit.called
+                    mock_remove.assert_called_once_with(db=mock_db, id=1)
+                    assert mock_db.commit.called
+                    assert mock_space.note_count == 4  # 检查计数是否减少
 
     @pytest.mark.asyncio
     async def test_delete_note_not_found(self, mock_db, mock_user):

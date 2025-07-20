@@ -1,6 +1,8 @@
 """Export endpoints."""
 
 import io
+import json
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,6 +13,7 @@ from app.core.auth import get_current_active_user
 from app.core.database import get_db
 from app.crud.conversation import crud_conversation
 from app.crud.document import crud_document
+from app.crud.message import crud_message
 from app.crud.note import crud_note
 from app.crud.space import crud_space
 from app.models.models import User
@@ -54,10 +57,34 @@ async def export_notes(
     if request.format == "pdf":
         # 导出为PDF
         if request.merge_into_one and len(notes) > 1:
-            # TODO: 实现多个笔记合并为一个PDF
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="暂不支持多个笔记合并为一个PDF",
+            # 合并多个笔记为一个PDF
+            notes_data = []
+            for note in notes:
+                note_dict = {
+                    "id": note.id,
+                    "title": note.title,
+                    "content": note.content,
+                    "created_at": note.created_at.isoformat(),
+                    "updated_at": note.updated_at.isoformat(),
+                    "version": note.version,
+                    "tags": note.tags or [],
+                }
+                notes_data.append(note_dict)
+
+            content = await export_service.export_notes_to_pdf(
+                notes_data,
+                title=f"{notes[0].space.name if notes[0].space else 'SecondBrain'} 笔记合集",
+                include_metadata=request.include_metadata,
+            )
+
+            filename = "notes_collection.pdf"
+            return StreamingResponse(
+                io.BytesIO(content),
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Length": str(len(content)),
+                },
             )
         else:
             # 导出单个笔记
@@ -109,10 +136,34 @@ async def export_notes(
     elif request.format == "docx":
         # 导出为DOCX
         if request.merge_into_one and len(notes) > 1:
-            # TODO: 实现多个笔记合并为一个DOCX
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="暂不支持多个笔记合并为一个DOCX",
+            # 合并多个笔记为一个DOCX
+            notes_data = []
+            for note in notes:
+                note_dict = {
+                    "id": note.id,
+                    "title": note.title,
+                    "content": note.content,
+                    "created_at": note.created_at.isoformat(),
+                    "updated_at": note.updated_at.isoformat(),
+                    "version": note.version,
+                    "tags": note.tags or [],
+                }
+                notes_data.append(note_dict)
+
+            content = await export_service.export_notes_to_docx(
+                notes_data,
+                title=f"{notes[0].space.name if notes[0].space else 'SecondBrain'} 笔记合集",
+                include_metadata=request.include_metadata,
+            )
+
+            filename = "notes_collection.docx"
+            return StreamingResponse(
+                io.BytesIO(content),
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Length": str(len(content)),
+                },
             )
         else:
             # 导出单个笔记
@@ -196,10 +247,35 @@ async def export_documents(
     if request.format == "pdf":
         # 导出为PDF
         if request.merge_into_one and len(documents) > 1:
-            # TODO: 实现多个文档合并为一个PDF
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="暂不支持多个文档合并为一个PDF",
+            # 合并多个文档为一个PDF
+            docs_data = []
+            for doc in documents:
+                doc_dict = {
+                    "id": doc.id,
+                    "filename": doc.filename,
+                    "title": doc.title or doc.filename,
+                    "mime_type": doc.content_type,
+                    "file_size": doc.file_size,
+                    "created_at": doc.created_at.isoformat(),
+                    "tags": doc.tags or [],
+                    "extracted_text": getattr(doc, "extracted_text", doc.content) or "",
+                }
+                docs_data.append(doc_dict)
+
+            content = await export_service.export_documents_to_pdf(
+                docs_data,
+                title=f"{documents[0].space.name if documents[0].space else 'SecondBrain'} 文档合集",
+                include_content=True,
+            )
+
+            filename = "documents_collection.pdf"
+            return StreamingResponse(
+                io.BytesIO(content),
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Length": str(len(content)),
+                },
             )
         else:
             # 导出单个文档
@@ -272,9 +348,7 @@ async def export_space(
     notes = []
 
     if request.include_documents:
-        documents = await crud_document.get_by_space(
-            db, space_id=request.space_id
-        )
+        documents = await crud_document.get_by_space(db, space_id=request.space_id)
 
     if request.include_notes:
         notes = await crud_note.get_by_space(
@@ -360,8 +434,124 @@ async def export_conversations(
             )
         conversations.append(conv)
 
-    # TODO: 实现对话导出
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="对话导出功能正在开发中",
-    )
+    # 实现对话导出
+    if request.format == "json":
+        export_data = []
+
+        for conv in conversations:
+            # 获取对话消息
+            messages = await crud_message.get_by_conversation(
+                db, conversation_id=conv.id, limit=1000
+            )
+
+            # 转换数据格式
+            conv_dict = {
+                "id": conv.id,
+                "title": conv.title,
+                "space_id": conv.space_id,
+                "created_at": conv.created_at.isoformat(),
+                "updated_at": conv.updated_at.isoformat(),
+                "agent_id": conv.agent_id,
+                "model": conv.model,
+                "search_enabled": conv.search_enabled,
+            }
+
+            messages_list = []
+            for msg in messages:
+                msg_dict = {
+                    "id": msg.id,
+                    "role": msg.role,
+                    "content": msg.content,
+                    "created_at": msg.created_at.isoformat(),
+                    "model": msg.model,
+                    "parent_message_id": msg.parent_message_id,
+                    "branch_name": msg.branch_name,
+                }
+                messages_list.append(msg_dict)
+
+            # 导出单个对话
+            if request.merge_into_one:
+                export_item = await export_service.export_conversation_to_json(
+                    conv_dict,
+                    messages_list,
+                    include_branches=request.include_branches,
+                )
+                export_data.append(export_item)
+            else:
+                # 单独导出
+                export_item = await export_service.export_conversation_to_json(
+                    conv_dict,
+                    messages_list,
+                    include_branches=request.include_branches,
+                )
+
+                filename = f"conversation_{conv.id}.json"
+                content = json.dumps(export_item, ensure_ascii=False, indent=2)
+
+                return StreamingResponse(
+                    io.BytesIO(content.encode("utf-8")),
+                    media_type="application/json",
+                    headers={
+                        "Content-Disposition": f"attachment; filename={filename}",
+                        "Content-Length": str(len(content.encode("utf-8"))),
+                    },
+                )
+
+        # 合并导出
+        if request.merge_into_one and len(conversations) > 1:
+            filename = "conversations_export.json"
+            content = json.dumps(export_data, ensure_ascii=False, indent=2)
+
+            return StreamingResponse(
+                io.BytesIO(content.encode("utf-8")),
+                media_type="application/json",
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Length": str(len(content.encode("utf-8"))),
+                },
+            )
+
+    elif request.format == "markdown":
+        # 导出为Markdown格式
+        content_lines = []
+
+        for conv in conversations:
+            # 获取对话消息
+            messages = await crud_message.get_by_conversation(
+                db, conversation_id=conv.id, limit=1000
+            )
+
+            # 添加对话标题
+            content_lines.append(f"# {conv.title}")
+            content_lines.append("")
+            content_lines.append(f"**创建时间**: {conv.created_at.isoformat()}")
+            content_lines.append(f"**模型**: {conv.model or 'N/A'}")
+            content_lines.append("")
+
+            # 添加消息
+            for msg in messages:
+                role_label = "用户" if msg.role == "user" else "助手"
+                content_lines.append(f"## {role_label}")
+                content_lines.append("")
+                content_lines.append(msg.content)
+                content_lines.append("")
+                content_lines.append("---")
+                content_lines.append("")
+
+        content = "\n".join(content_lines)
+        filename = f"conversation_export_{int(datetime.now().timestamp())}.md"
+
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8")),
+            media_type="text/markdown",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Length": str(len(content.encode("utf-8"))),
+            },
+        )
+
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"不支持的导出格式: {request.format}",
+        )

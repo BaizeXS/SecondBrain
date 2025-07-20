@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecondBrain API 简单测试工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #666;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.secondary {
+            background: #008CBA;
+        }
+        button.secondary:hover {
+            background: #007399;
+        }
+        .log {
+            background: #f1f1f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .log-entry {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 3px;
+        }
+        .log-entry.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .log-entry.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .log-entry.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .test-results {
+            margin-top: 20px;
+        }
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .test-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 SecondBrain API 简单测试工具</h1>
+        
+        <!-- 状态显示 -->
+        <div class="section">
+            <h2>系统状态</h2>
+            <p>
+                后端服务: <span id="serverStatus" class="status offline">未检测</span>
+                &nbsp;&nbsp;
+                登录状态: <span id="loginStatus" class="status offline">未登录</span>
+            </p>
+        </div>
+
+        <!-- 登录表单 -->
+        <div class="section">
+            <h2>1. 登录测试</h2>
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" id="username" value="demo_user" />
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="password" value="Demo123456!" />
+            </div>
+            <button onclick="testLogin()">登录</button>
+            <button onclick="testLogout()" class="secondary">登出</button>
+        </div>
+
+        <!-- 功能测试 -->
+        <div class="section">
+            <h2>2. 功能测试</h2>
+            <button onclick="runAllTests()">运行所有测试</button>
+            <button onclick="clearLog()" class="secondary">清空日志</button>
+            
+            <div class="test-results" id="testResults"></div>
+        </div>
+
+        <!-- 自定义请求 -->
+        <div class="section">
+            <h2>3. 自定义请求</h2>
+            <div class="form-group">
+                <label>请求方法</label>
+                <select id="method">
+                    <option>GET</option>
+                    <option>POST</option>
+                    <option>PUT</option>
+                    <option>DELETE</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>请求路径（例如: /users/me）</label>
+                <input type="text" id="endpoint" placeholder="/api/v1/..." />
+            </div>
+            <div class="form-group">
+                <label>请求数据（JSON 格式）</label>
+                <textarea id="requestData" rows="4" placeholder='{"key": "value"}'></textarea>
+            </div>
+            <button onclick="sendCustomRequest()">发送请求</button>
+        </div>
+
+        <!-- 日志输出 -->
+        <div class="section">
+            <h2>日志输出</h2>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api/v1';
+        let accessToken = '';
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${time}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // 检查服务状态
+        async function checkServerStatus() {
+            try {
+                const response = await fetch('http://localhost:8000/health');
+                if (response.ok) {
+                    document.getElementById('serverStatus').className = 'status online';
+                    document.getElementById('serverStatus').textContent = '在线';
+                    log('✅ 后端服务正常', 'success');
+                } else {
+                    throw new Error('Server not responding');
+                }
+            } catch (error) {
+                document.getElementById('serverStatus').className = 'status offline';
+                document.getElementById('serverStatus').textContent = '离线';
+                log('❌ 后端服务不可用', 'error');
+            }
+        }
+
+        // 登录测试
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            log(`尝试登录: ${username}`);
+
+            try {
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    accessToken = data.access_token;
+                    document.getElementById('loginStatus').className = 'status online';
+                    document.getElementById('loginStatus').textContent = '已登录';
+                    log(`✅ 登录成功！Token: ${accessToken.substring(0, 20)}...`, 'success');
+                    
+                    // 获取用户信息
+                    await getUserInfo();
+                } else {
+                    const error = await response.json();
+                    log(`❌ 登录失败: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ 登录错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 登出测试
+        async function testLogout() {
+            if (!accessToken) {
+                log('⚠️ 当前未登录', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    accessToken = '';
+                    document.getElementById('loginStatus').className = 'status offline';
+                    document.getElementById('loginStatus').textContent = '未登录';
+                    log('✅ 登出成功', 'success');
+                } else {
+                    log('❌ 登出失败', 'error');
+                }
+            } catch (error) {
+                log(`❌ 登出错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 获取用户信息
+        async function getUserInfo() {
+            try {
+                const response = await fetch(`${API_BASE}/users/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    log(`✅ 用户信息: ${user.username} (${user.email})`, 'success');
+                } else {
+                    log('❌ 获取用户信息失败', 'error');
+                }
+            } catch (error) {
+                log(`❌ 获取用户信息错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 运行所有测试
+        async function runAllTests() {
+            if (!accessToken) {
+                log('⚠️ 请先登录', 'error');
+                return;
+            }
+
+            log('🚀 开始运行测试...');
+            
+            const tests = [
+                { name: '健康检查', method: 'GET', endpoint: '/health', auth: false },
+                { name: '用户信息', method: 'GET', endpoint: '/users/me' },
+                { name: '用户统计', method: 'GET', endpoint: '/users/me/stats' },
+                { name: '空间列表', method: 'GET', endpoint: '/spaces' },
+                { name: '文档列表', method: 'GET', endpoint: '/documents' },
+                { name: '笔记列表', method: 'GET', endpoint: '/notes' },
+                { name: '对话列表', method: 'GET', endpoint: '/chat/conversations' },
+                { name: '代理列表', method: 'GET', endpoint: '/agents' },
+                { name: 'Ollama状态', method: 'GET', endpoint: '/ollama/status' },
+            ];
+
+            const results = [];
+            
+            for (const test of tests) {
+                try {
+                    const headers = test.auth !== false ? {
+                        'Authorization': `Bearer ${accessToken}`
+                    } : {};
+                    
+                    const url = test.endpoint.startsWith('http') ? test.endpoint : `${API_BASE}${test.endpoint}`;
+                    
+                    const response = await fetch(url, {
+                        method: test.method,
+                        headers
+                    });
+
+                    if (response.ok) {
+                        log(`✅ ${test.name}: 成功 (${response.status})`, 'success');
+                        results.push({ name: test.name, success: true });
+                    } else {
+                        log(`❌ ${test.name}: 失败 (${response.status})`, 'error');
+                        results.push({ name: test.name, success: false });
+                    }
+                } catch (error) {
+                    log(`❌ ${test.name}: 错误 - ${error.message}`, 'error');
+                    results.push({ name: test.name, success: false });
+                }
+                
+                // 添加延迟避免请求过快
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            // 显示结果
+            const successCount = results.filter(r => r.success).length;
+            const totalCount = results.length;
+            log(`\n📊 测试完成: ${successCount}/${totalCount} 通过 (${Math.round(successCount/totalCount*100)}%)`, 'info');
+            
+            displayTestResults(results);
+        }
+
+        // 显示测试结果
+        function displayTestResults(results) {
+            const container = document.getElementById('testResults');
+            container.innerHTML = '<h3>测试结果</h3>';
+            
+            results.forEach(result => {
+                const item = document.createElement('div');
+                item.className = 'test-item';
+                item.innerHTML = `
+                    <span>${result.name}</span>
+                    <span>${result.success ? '✅ 通过' : '❌ 失败'}</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // 发送自定义请求
+        async function sendCustomRequest() {
+            const method = document.getElementById('method').value;
+            const endpoint = document.getElementById('endpoint').value;
+            const requestData = document.getElementById('requestData').value;
+
+            if (!endpoint) {
+                log('⚠️ 请输入请求路径', 'error');
+                return;
+            }
+
+            log(`📤 发送 ${method} 请求到 ${endpoint}`);
+
+            try {
+                const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+
+                if (accessToken) {
+                    options.headers['Authorization'] = `Bearer ${accessToken}`;
+                }
+
+                if (requestData && ['POST', 'PUT'].includes(method)) {
+                    try {
+                        options.body = JSON.stringify(JSON.parse(requestData));
+                    } catch (e) {
+                        log('⚠️ 请求数据不是有效的 JSON', 'error');
+                        return;
+                    }
+                }
+
+                const response = await fetch(url, options);
+                const responseData = await response.json();
+
+                if (response.ok) {
+                    log(`✅ 请求成功 (${response.status})`, 'success');
+                    log(`📥 响应数据:\n${JSON.stringify(responseData, null, 2)}`, 'info');
+                } else {
+                    log(`❌ 请求失败 (${response.status})`, 'error');
+                    log(`📥 错误信息:\n${JSON.stringify(responseData, null, 2)}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ 请求错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载时检查服务状态
+        window.onload = function() {
+            checkServerStatus();
+            log('🎉 SecondBrain API 测试工具已准备就绪');
+            log('📌 使用演示账号: demo_user / Demo123456!');
+        };
+    </script>
+</body>
+</html>

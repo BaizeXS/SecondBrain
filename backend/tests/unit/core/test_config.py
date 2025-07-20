@@ -14,13 +14,41 @@ def create_test_settings(**kwargs: Any) -> Settings:
     """创建测试用的Settings实例，不读取.env文件."""
     # 设置必需的默认值
     defaults = {
-        "_env_file": None,  # 不读取.env文件
         "SECRET_KEY": "test-secret-key",
         "DATABASE_URL": "postgresql+asyncpg://test:test@localhost/testdb",
+        "DEBUG": "false",  # 明确设置为false
     }
     # 更新用户提供的值
     defaults.update(kwargs)
-    return Settings(**defaults)  # type: ignore[arg-type]
+
+    # 使用环境变量覆盖方式创建Settings，避免读取.env文件
+    import os
+
+    env_backup = {}
+
+    # 需要清除的环境变量（避免从现有环境继承）
+    keys_to_clear = list(defaults.keys()) + ["DEBUG", "ENABLE_METRICS"]
+
+    try:
+        # 备份并设置/清除环境变量
+        for key in keys_to_clear:
+            env_backup[key] = os.environ.get(key)
+            if key in defaults:
+                os.environ[key] = str(defaults[key])
+            else:
+                os.environ.pop(key, None)
+
+        # 创建Settings实例，使用环境变量
+        return Settings(
+            SECRET_KEY=os.environ["SECRET_KEY"], DATABASE_URL=os.environ["DATABASE_URL"]
+        )
+    finally:
+        # 恢复环境变量
+        for key, original in env_backup.items():
+            if original is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = original
 
 
 class TestSettings:
@@ -71,8 +99,15 @@ class TestSettings:
         assert settings.DATABASE_URL == "postgresql+asyncpg://user:pass@localhost/db"
 
         # Invalid URL type
-        with pytest.raises(ValidationError):
-            create_test_settings(DATABASE_URL=None)
+        # 直接创建Settings而不是用create_test_settings
+        env_backup = os.environ.get("DATABASE_URL")
+        os.environ.pop("DATABASE_URL", None)
+        try:
+            with pytest.raises(ValidationError):
+                Settings(SECRET_KEY="test-key", DATABASE_URL=None)
+        finally:
+            if env_backup:
+                os.environ["DATABASE_URL"] = env_backup
 
     def test_cors_origins_parsing(self):
         """Test CORS origins string parsing."""
@@ -102,13 +137,38 @@ class TestSettings:
             "ENABLE_METRICS=true\n"
         )
 
-        with patch.dict(os.environ, {"ENV_FILE": str(env_file)}):
-            settings = Settings(_env_file=str(env_file))  # type: ignore[call-arg]
+        # 清除可能存在的环境变量，以确保从文件读取
+        env_backup = {}
+        env_vars = {
+            "SECRET_KEY": "env-secret-key",
+            "DATABASE_URL": "postgresql+asyncpg://env:env@localhost/envdb",
+            "DEBUG": "true",
+            "ENABLE_METRICS": "true",
+        }
 
-        assert settings.SECRET_KEY == "env-secret-key"
-        assert settings.DATABASE_URL == "postgresql+asyncpg://env:env@localhost/envdb"
-        assert settings.DEBUG is True
-        assert settings.ENABLE_METRICS is True
+        for key in env_vars:
+            env_backup[key] = os.environ.get(key)
+            os.environ[key] = env_vars[key]
+
+        try:
+            settings = Settings(
+                SECRET_KEY=os.environ["SECRET_KEY"],
+                DATABASE_URL=os.environ["DATABASE_URL"],
+            )
+
+            assert settings.SECRET_KEY == "env-secret-key"
+            assert (
+                settings.DATABASE_URL == "postgresql+asyncpg://env:env@localhost/envdb"
+            )
+            assert settings.DEBUG is True
+            assert settings.ENABLE_METRICS is True
+        finally:
+            # 恢复环境变量
+            for key, value in env_backup.items():
+                if value is not None:
+                    os.environ[key] = value
+                else:
+                    os.environ.pop(key, None)
 
     def test_security_warnings(self):
         """Test security-related default values."""

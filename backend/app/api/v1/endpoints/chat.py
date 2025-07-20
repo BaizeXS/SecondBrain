@@ -193,17 +193,37 @@ async def get_conversation(
     current_user: User = Depends(get_current_active_user),
 ) -> ConversationWithMessages:
     """获取对话详情及消息."""
-    conversation = await ConversationService.get_conversation_with_messages(
+    result = await ConversationService.get_conversation_with_messages(
         db, conversation_id, current_user, message_limit
     )
 
-    if not conversation:
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="对话不存在或无权访问",
         )
 
-    return ConversationWithMessages.model_validate(conversation)
+    conversation, messages = result
+    # 构建响应对象
+    response_data = {
+        "id": conversation.id,
+        "title": conversation.title,
+        "mode": conversation.mode,
+        "model": conversation.model,
+        "space_id": conversation.space_id,
+        "prompt_template": conversation.system_prompt,
+        "is_pinned": False,  # 默认值，因为模型中没有此字段
+        "is_archived": False,  # 默认值，因为模型中没有此字段
+        "message_count": conversation.message_count,
+        "token_count": conversation.total_tokens,
+        "tags": None,  # 默认值，因为模型中没有此字段
+        "meta_data": conversation.meta_data,
+        "created_at": conversation.created_at,
+        "updated_at": conversation.updated_at,
+        "messages": messages,
+    }
+
+    return ConversationWithMessages.model_validate(response_data)
 
 
 @router.put("/conversations/{conversation_id}", response_model=ConversationResponse)

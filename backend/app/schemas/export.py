@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class ExportFormat(str, Enum):
     """导出格式枚举."""
+
     PDF = "pdf"
     DOCX = "docx"
     MARKDOWN = "markdown"
@@ -53,6 +54,7 @@ class ConversationExportRequest(BaseModel):
     format: str = Field(ExportFormat.PDF, description="导出格式")
     include_metadata: bool = Field(True, description="是否包含元数据")
     include_branches: bool = Field(False, description="是否包含分支")
+    merge_into_one: bool = Field(False, description="是否合并为一个文件")
     date_from: str | None = Field(None, description="起始日期")
     date_to: str | None = Field(None, description="结束日期")
 

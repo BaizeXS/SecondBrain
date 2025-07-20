@@ -53,6 +53,7 @@ async def test_crud_operations():
 
             # Try to use existing user first, or create new one with unique timestamp
             import time
+
             timestamp = str(int(time.time()))
             username = f"test_integration_user_{timestamp}"
 
@@ -60,7 +61,7 @@ async def test_crud_operations():
                 username=username,
                 email=f"test_integration_{timestamp}@example.com",
                 full_name="Test Integration User",
-                password="test_password123"
+                password="test_password123",
             )
             user = await crud_user.create(db, obj_in=user_data)
             assert user.id is not None
@@ -76,7 +77,7 @@ async def test_crud_operations():
                 icon="test",
                 is_public=False,
                 tags=["integration", "test"],
-                meta_data={"test": True}
+                meta_data={"test": True},
             )
             space = await crud_space.create(db, obj_in=space_data, user_id=user.id)
             assert space.id is not None
@@ -92,7 +93,10 @@ async def test_crud_operations():
                 space_id=space.id,
                 description="A test document",
                 tags=["integration", "test"],
-                meta_data={"source": "integration_test", "timestamp": datetime.now(UTC).isoformat()}
+                meta_data={
+                    "source": "integration_test",
+                    "timestamp": datetime.now(UTC).isoformat(),
+                },
             )
             document = await crud_document.create(
                 db,
@@ -100,11 +104,14 @@ async def test_crud_operations():
                 user_id=user.id,
                 file_path="/tmp/test_integration.txt",
                 file_hash="test_hash_123",
-                original_filename="test_integration.txt"
+                original_filename="test_integration.txt",
             )
             assert document.id is not None
             assert document.filename == "test_integration.txt"
-            assert document.meta_data and document.meta_data["source"] == "integration_test"
+            assert (
+                document.meta_data
+                and document.meta_data["source"] == "integration_test"
+            )
             print("    ✅ Document creation successful")
 
             # Test relationships
@@ -124,6 +131,7 @@ async def test_crud_operations():
         except Exception as e:
             print(f"❌ CRUD operations failed: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -143,7 +151,9 @@ async def test_complex_queries():
 
             # Test search functionality
             if users and user_spaces:
-                documents = await crud_document.search(db, space_id=user_spaces[0].id, query="test", limit=5)
+                documents = await crud_document.search(
+                    db, space_id=user_spaces[0].id, query="test", limit=5
+                )
                 print(f"    🔎 Found {len(documents)} documents matching 'test'")
             else:
                 print("    📝 No spaces found for search test")
@@ -215,9 +225,13 @@ async def main():
     print(f"\n🎯 Overall: {passed}/{len(results)} tests passed")
 
     if passed == len(results):
-        print("🎉 All connectivity tests passed! CRUD layer is properly connected to the database.")
+        print(
+            "🎉 All connectivity tests passed! CRUD layer is properly connected to the database."
+        )
     else:
-        print("⚠️  Some tests failed. Please check the database configuration and connections.")
+        print(
+            "⚠️  Some tests failed. Please check the database configuration and connections."
+        )
 
     # Close database connections
     await engine.dispose()

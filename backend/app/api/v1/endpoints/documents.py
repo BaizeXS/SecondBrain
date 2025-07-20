@@ -25,6 +25,9 @@ from app.schemas.documents import (
     DocumentListResponse,
     DocumentResponse,
     DocumentUpdate,
+    SearchRequest,
+    SearchResponse,
+    SearchResult,
 )
 from app.schemas.web_import import (
     BatchURLImportRequest,
@@ -688,3 +691,133 @@ async def analyze_url(
         )
 
     return URLAnalysisResponse(**analysis)
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search_documents(
+    search_request: SearchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> SearchResponse:
+    """搜索文档."""
+    # 如果指定了space_id，检查权限
+    if search_request.space_id:
+        space = await crud.crud_space.get(db, id=search_request.space_id)
+        if not space:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="空间不存在",
+            )
+
+        # 检查访问权限
+        if space.user_id != current_user.id and not space.is_public:
+            access = await crud.crud_space.get_user_access(
+                db, space_id=search_request.space_id, user_id=current_user.id
+            )
+            if not access:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="无权访问此空间",
+                )
+
+    # 执行搜索
+    import time
+
+    start_time = time.time()
+
+    # 简单的关键词搜索实现
+    # 在实际应用中，这里应该调用 vector_service 进行向量搜索
+    query = search_request.query.lower()
+    all_documents = await crud.crud_document.get_multi(db, limit=1000)
+
+    # 过滤用户可访问的文档
+    accessible_docs = []
+    for doc in all_documents:
+        # 检查文档权限
+        if doc.user_id == current_user.id:
+            accessible_docs.append(doc)
+        elif doc.space_id:
+            space = await crud.crud_space.get(db, id=doc.space_id)
+            if space and (space.is_public or space.user_id == current_user.id):
+                accessible_docs.append(doc)
+            else:
+                # 检查协作权限
+                access = await crud.crud_space.get_user_access(
+                    db, space_id=doc.space_id, user_id=current_user.id
+                )
+                if access:
+                    accessible_docs.append(doc)
+
+    # 如果指定了space_id，只搜索该空间的文档
+    if search_request.space_id:
+        accessible_docs = [
+            doc for doc in accessible_docs if doc.space_id == search_request.space_id
+        ]
+
+    # 执行搜索
+    results = []
+    for doc in accessible_docs:
+        score = 0.0
+        highlights = {}
+
+        # 搜索标题
+        if doc.title and query in doc.title.lower():
+            score += 2.0
+            highlights["title"] = [doc.title]
+
+        # 搜索文件名
+        if query in doc.filename.lower():
+            score += 1.5
+            highlights["filename"] = [doc.filename]
+
+        # 搜索内容
+        if doc.content and query in doc.content.lower():
+            score += 1.0
+            # 提取包含查询词的片段
+            content_lower = doc.content.lower()
+            idx = content_lower.find(query)
+            if idx != -1:
+                start = max(0, idx - 50)
+                end = min(len(doc.content), idx + len(query) + 50)
+                snippet = doc.content[start:end]
+                if start > 0:
+                    snippet = "..." + snippet
+                if end < len(doc.content):
+                    snippet = snippet + "..."
+                highlights["content"] = [snippet]
+
+        # 搜索标签
+        if doc.tags:
+            for tag in doc.tags:
+                if query in tag.lower():
+                    score += 0.5
+                    highlights["tags"] = doc.tags
+                    break
+
+        if score > 0:
+            results.append(
+                SearchResult(
+                    document_id=doc.id,
+                    title=doc.title or doc.filename,
+                    snippet=highlights.get("content", [""])[0]
+                    if "content" in highlights
+                    else doc.summary or "",
+                    score=score,
+                    highlight=highlights,
+                )
+            )
+
+    # 按分数排序
+    results.sort(key=lambda x: x.score, reverse=True)
+
+    # 限制结果数量
+    results = results[: search_request.limit]
+
+    search_time = time.time() - start_time
+
+    return SearchResponse(
+        results=results,
+        total=len(results),
+        query=search_request.query,
+        search_time=search_time,
+    )

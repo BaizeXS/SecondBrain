@@ -46,6 +46,7 @@ def mock_note():
     note.updated_at = datetime.now(UTC)
     note.version = 1
     note.tags = ["test", "export"]
+    note.space = None  # 可以为None或者mock space
     return note
 
 
@@ -58,9 +59,12 @@ def mock_document():
     document.title = "Test Document"
     document.filename = "test.pdf"
     document.content = "Test document content"
+    document.content_type = "application/pdf"
     document.created_at = datetime.now(UTC)
     document.file_size = 1024
     document.summary = "Test summary"
+    document.tags = ["test", "export"]
+    document.space = None  # 可以为None或者mock space
     return document
 
 
@@ -110,9 +114,7 @@ class TestExportNotes:
         with patch("app.api.v1.endpoints.export.crud_note") as mock_crud:
             with patch("app.api.v1.endpoints.export.export_service") as mock_service:
                 mock_crud.get = AsyncMock(return_value=mock_note)
-                mock_service.export_note_to_pdf = AsyncMock(
-                    return_value=b"PDF content"
-                )
+                mock_service.export_note_to_pdf = AsyncMock(return_value=b"PDF content")
 
                 result = await export_notes(
                     request=request,
@@ -265,13 +267,13 @@ class TestExportNotes:
             assert "无权访问笔记 1" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
-    async def test_export_merge_notes_not_supported(
+    async def test_export_merge_notes_success(
         self,
         mock_user: User,
         mock_note: Note,
         async_test_db: AsyncSession,
     ):
-        """Test merge multiple notes (not supported)."""
+        """Test merge multiple notes successfully."""
         request = NoteExportRequest(
             note_ids=[1, 2],
             format="pdf",
@@ -281,18 +283,44 @@ class TestExportNotes:
             merge_into_one=True,
         )
 
-        with patch("app.api.v1.endpoints.export.crud_note") as mock_crud:
-            mock_crud.get = AsyncMock(return_value=mock_note)
+        # Create second note
+        mock_note2 = MagicMock(spec=Note)
+        mock_note2.id = 2
+        mock_note2.user_id = 1
+        mock_note2.title = "Test Note 2"
+        mock_note2.content = "Test content 2"
+        mock_note2.created_at = datetime.now(UTC)
+        mock_note2.updated_at = datetime.now(UTC)
+        mock_note2.version = 1
+        mock_note2.tags = ["test", "export"]
+        mock_note2.space = None
 
-            with pytest.raises(HTTPException) as exc_info:
-                await export_notes(
-                    request=request,
-                    db=async_test_db,
-                    current_user=mock_user,
-                )
+        with (
+            patch("app.api.v1.endpoints.export.crud_note") as mock_crud,
+            patch("app.api.v1.endpoints.export.export_service") as mock_service,
+        ):
+            # Mock crud to return different notes for different IDs
+            def mock_get(db, id):
+                if id == 1:
+                    return mock_note
+                elif id == 2:
+                    return mock_note2
+                return None
 
-            assert exc_info.value.status_code == 501
-            assert "暂不支持多个笔记合并为一个PDF" in str(exc_info.value.detail)
+            mock_crud.get = AsyncMock(side_effect=mock_get)
+            mock_service.export_notes_to_pdf = AsyncMock(
+                return_value=b"Merged PDF content"
+            )
+
+            result = await export_notes(
+                request=request,
+                db=async_test_db,
+                current_user=mock_user,
+            )
+
+            assert isinstance(result, StreamingResponse)
+            assert result.media_type == "application/pdf"
+            assert "notes_collection.pdf" in result.headers["Content-Disposition"]
 
     @pytest.mark.asyncio
     async def test_export_unsupported_format(
@@ -420,13 +448,13 @@ class TestExportDocuments:
             assert "无权访问文档 1" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
-    async def test_export_merge_documents_not_supported(
+    async def test_export_merge_documents_success(
         self,
         mock_user: User,
         mock_document: Document,
         async_test_db: AsyncSession,
     ):
-        """Test merge multiple documents (not supported)."""
+        """Test merge multiple documents successfully."""
         request = DocumentExportRequest(
             document_ids=[1, 2],
             format="pdf",
@@ -435,18 +463,46 @@ class TestExportDocuments:
             merge_into_one=True,
         )
 
-        with patch("app.api.v1.endpoints.export.crud_document") as mock_crud:
-            mock_crud.get = AsyncMock(return_value=mock_document)
+        # Create second document
+        mock_document2 = MagicMock(spec=Document)
+        mock_document2.id = 2
+        mock_document2.user_id = 1
+        mock_document2.title = "Test Document 2"
+        mock_document2.filename = "test2.pdf"
+        mock_document2.content = "Test document content 2"
+        mock_document2.content_type = "application/pdf"
+        mock_document2.created_at = datetime.now(UTC)
+        mock_document2.file_size = 2048
+        mock_document2.summary = "Test summary 2"
+        mock_document2.tags = ["test", "export"]
+        mock_document2.space = None
 
-            with pytest.raises(HTTPException) as exc_info:
-                await export_documents(
-                    request=request,
-                    db=async_test_db,
-                    current_user=mock_user,
-                )
+        with (
+            patch("app.api.v1.endpoints.export.crud_document") as mock_crud,
+            patch("app.api.v1.endpoints.export.export_service") as mock_service,
+        ):
+            # Mock crud to return different documents for different IDs
+            def mock_get(db, id):
+                if id == 1:
+                    return mock_document
+                elif id == 2:
+                    return mock_document2
+                return None
 
-            assert exc_info.value.status_code == 501
-            assert "暂不支持多个文档合并为一个PDF" in str(exc_info.value.detail)
+            mock_crud.get = AsyncMock(side_effect=mock_get)
+            mock_service.export_documents_to_pdf = AsyncMock(
+                return_value=b"Merged Documents PDF content"
+            )
+
+            result = await export_documents(
+                request=request,
+                db=async_test_db,
+                current_user=mock_user,
+            )
+
+            assert isinstance(result, StreamingResponse)
+            assert result.media_type == "application/pdf"
+            assert "documents_collection.pdf" in result.headers["Content-Disposition"]
 
     @pytest.mark.asyncio
     async def test_export_document_unsupported_format(
@@ -525,7 +581,10 @@ class TestExportSpace:
 
                         assert isinstance(result, StreamingResponse)
                         assert result.media_type == "application/pdf"
-                        assert "Test_Space_export.pdf" in result.headers["Content-Disposition"]
+                        assert (
+                            "Test_Space_export.pdf"
+                            in result.headers["Content-Disposition"]
+                        )
 
     @pytest.mark.asyncio
     async def test_export_space_not_found(
@@ -669,18 +728,19 @@ class TestExportConversations:
     """Test export conversations endpoint."""
 
     @pytest.mark.asyncio
-    async def test_export_conversations_not_implemented(
+    async def test_export_conversations_unsupported_format(
         self,
         mock_user: User,
         mock_conversation: Conversation,
         async_test_db: AsyncSession,
     ):
-        """Test export conversations (not implemented yet)."""
+        """Test export conversations with unsupported format (PDF not supported for conversations)."""
         request = ConversationExportRequest(
             conversation_ids=[1],
             format="pdf",
             include_metadata=True,
             include_branches=False,
+            merge_into_one=False,
             date_from=None,
             date_to=None,
         )
@@ -695,8 +755,8 @@ class TestExportConversations:
                     current_user=mock_user,
                 )
 
-            assert exc_info.value.status_code == 501
-            assert "对话导出功能正在开发中" in str(exc_info.value.detail)
+            assert exc_info.value.status_code == 400
+            assert "不支持的导出格式: pdf" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
     async def test_export_conversation_not_found(
@@ -710,6 +770,7 @@ class TestExportConversations:
             format="pdf",
             include_metadata=True,
             include_branches=False,
+            merge_into_one=False,
             date_from=None,
             date_to=None,
         )
@@ -741,6 +802,7 @@ class TestExportConversations:
             format="pdf",
             include_metadata=True,
             include_branches=False,
+            merge_into_one=False,
             date_from=None,
             date_to=None,
         )
@@ -757,4 +819,3 @@ class TestExportConversations:
 
             assert exc_info.value.status_code == 403
             assert "无权访问对话 1" in str(exc_info.value.detail)
-

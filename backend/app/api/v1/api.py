@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     citations,
     documents,
     export,
+    health,
     notes,
     ollama,
     spaces,
@@ -55,3 +56,7 @@ api_router.include_router(export.router, prefix="/export", tags=["导出"])
 
 # Ollama路由
 api_router.include_router(ollama.router, prefix="/ollama", tags=["Ollama"])
+
+# === 系统监控 ===
+# 健康检查路由
+api_router.include_router(health.router, prefix="/health", tags=["健康检查"])

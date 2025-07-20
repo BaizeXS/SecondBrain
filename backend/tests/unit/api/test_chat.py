@@ -402,9 +402,16 @@ class TestConversationManagement:
         mock_conversation.updated_at = None
         mock_conversation.messages = []
 
+        # 创建 mock messages
+        mock_messages = []
+
         with patch("app.api.v1.endpoints.chat.ConversationService") as mock_service:
+            # 修改 mock_conversation 的属性名称以匹配实际的模型
+            mock_conversation.system_prompt = None
+            mock_conversation.total_tokens = 0
+
             mock_service.get_conversation_with_messages = AsyncMock(
-                return_value=mock_conversation
+                return_value=(mock_conversation, mock_messages)
             )
 
             result = await get_conversation(1, 50, mock_db, mock_user)
