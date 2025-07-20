@@ -4,6 +4,7 @@ import io
 import json
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -28,6 +29,14 @@ from app.services.export_service import export_service
 from app.services.note_service import note_service
 
 router = APIRouter()
+
+
+def safe_filename(filename: str) -> str:
+    """生成安全的文件名，处理Unicode字符."""
+    # 对文件名进行URL编码，确保兼容性
+    encoded_filename = quote(filename.encode('utf-8'))
+    # 构造符合RFC 5987的Content-Disposition头部
+    return f"filename*=UTF-8''{encoded_filename}"
 
 
 @router.post("/notes", response_model=ExportResponse)
@@ -82,7 +91,7 @@ async def export_notes(
                 io.BytesIO(content),
                 media_type="application/pdf",
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Disposition": f"attachment; {safe_filename(filename)}",
                     "Content-Length": str(len(content)),
                 },
             )
@@ -128,7 +137,7 @@ async def export_notes(
                 io.BytesIO(content),
                 media_type="application/pdf",
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Disposition": f"attachment; {safe_filename(filename)}",
                     "Content-Length": str(len(content)),
                 },
             )
@@ -161,7 +170,7 @@ async def export_notes(
                 io.BytesIO(content),
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Disposition": f"attachment; {safe_filename(filename)}",
                     "Content-Length": str(len(content)),
                 },
             )
@@ -208,7 +217,7 @@ async def export_notes(
                 io.BytesIO(content),
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Disposition": f"attachment; {safe_filename(filename)}",
                     "Content-Length": str(len(content)),
                 },
             )
@@ -273,7 +282,7 @@ async def export_documents(
                 io.BytesIO(content),
                 media_type="application/pdf",
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Disposition": f"attachment; {safe_filename(filename)}",
                     "Content-Length": str(len(content)),
                 },
             )
@@ -308,7 +317,7 @@ async def export_documents(
                 io.BytesIO(content),
                 media_type="application/pdf",
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Disposition": f"attachment; {safe_filename(filename)}",
                     "Content-Length": str(len(content)),
                 },
             )
@@ -399,7 +408,7 @@ async def export_space(
             io.BytesIO(content),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Disposition": f"attachment; {safe_filename(filename)}",
                 "Content-Length": str(len(content)),
             },
         )
@@ -492,7 +501,7 @@ async def export_conversations(
                     io.BytesIO(content.encode("utf-8")),
                     media_type="application/json",
                     headers={
-                        "Content-Disposition": f"attachment; filename={filename}",
+                        "Content-Disposition": f"attachment; {safe_filename(filename)}",
                         "Content-Length": str(len(content.encode("utf-8"))),
                     },
                 )
@@ -506,7 +515,7 @@ async def export_conversations(
                 io.BytesIO(content.encode("utf-8")),
                 media_type="application/json",
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Disposition": f"attachment; {safe_filename(filename)}",
                     "Content-Length": str(len(content.encode("utf-8"))),
                 },
             )
@@ -545,7 +554,7 @@ async def export_conversations(
             io.BytesIO(content.encode("utf-8")),
             media_type="text/markdown",
             headers={
-                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Disposition": f"attachment; {safe_filename(filename)}",
                 "Content-Length": str(len(content.encode("utf-8"))),
             },
         )

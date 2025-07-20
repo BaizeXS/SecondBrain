@@ -7,7 +7,6 @@ from typing import Any
 
 from fastapi import (
     APIRouter,
-    Body,
     Depends,
     File,
     Form,
@@ -45,7 +44,6 @@ from app.schemas.conversations import (
     ConversationResponse,
     ConversationUpdate,
     ConversationWithMessages,
-    MessageCreateSimple,
     MessageResponse,
 )
 from app.services import ConversationService, multimodal_helper
@@ -382,8 +380,6 @@ async def delete_conversation(
 async def send_message(
     conversation_id: int,
     request: Request,
-    # 支持JSON输入
-    message_data: MessageCreateSimple | None = Body(None),
     # 支持Form输入（用于文件上传）
     content: str | None = Form(None),
     attachments: list[UploadFile] | None = File(None),
@@ -422,10 +418,14 @@ async def send_message(
                 attachments, current_user, auto_switch_vision, model
             )
     else:
-        # JSON数据
-        if message_data:
-            message_content = message_data.content
-            processed_attachments = message_data.attachments
+        # JSON数据 - 手动从请求体中解析
+        try:
+            body = await request.json()
+            message_content = body.get("content")
+            processed_attachments = body.get("attachments")
+        except Exception:
+            message_content = None
+            processed_attachments = None
 
     if not message_content:
         raise HTTPException(
