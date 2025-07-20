@@ -99,7 +99,7 @@ export const AgentProvider = ({ children }) => {
         
         // 从后端获取 Agent 列表
         const response = await apiService.agent.getAgents();
-        const backendAgents = response.items || [];
+        const backendAgents = response.agents || response.items || [];
         
         // 转换后端 Agent 格式为前端格式
         const formattedAgents = backendAgents.map(agent => ({
@@ -117,6 +117,24 @@ export const AgentProvider = ({ children }) => {
           // 保存原始后端数据
           backendData: agent
         }));
+        
+        // 添加默认的 General agent（如果后端没有返回）
+        const hasGeneralAgent = formattedAgents.some(a => a.name === 'General' || a.name === '通用助手');
+        if (!hasGeneralAgent) {
+          formattedAgents.unshift({
+            id: 'agent-general',
+            name: 'General',
+            description: '通用AI助手，可以回答各种问题',
+            icon: 'FiMessageSquare',
+            color: '#4CAF50',
+            systemPrompt: '你是一个有帮助的AI助手。请以友好、专业的方式回答用户的问题。',
+            isSystem: true,
+            apiProvider: 'default',
+            apiEndpoint: '',
+            apiKey: '',
+            modelName: 'openrouter/auto'
+          });
+        }
         
         // 从 localStorage 加载用户自定义的本地 Agent
         const storedAgents = localStorage.getItem('customAgents');
