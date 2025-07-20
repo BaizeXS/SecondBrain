@@ -99,7 +99,24 @@ async def create_test_user():
 asyncio.run(create_test_user())
 EOF
 
-# 9. 获取服务器IP
+# 9. 复制演示数据脚本
+echo -e "\n${YELLOW}准备演示数据脚本...${NC}"
+if [ -f "create-demo-data.py" ]; then
+    echo "复制演示数据脚本到容器..."
+    docker cp create-demo-data.py $(docker ps -qf "name=backend"):/app/
+fi
+
+# 10. 询问是否创建演示数据
+echo -e "\n${YELLOW}是否创建演示数据？${NC}"
+read -p "创建演示数据 (y/n) [y]: " CREATE_DEMO
+CREATE_DEMO=${CREATE_DEMO:-y}
+
+if [ "$CREATE_DEMO" = "y" ]; then
+    echo -e "${YELLOW}创建演示数据...${NC}"
+    $COMPOSE_CMD exec -T backend python create-demo-data.py
+fi
+
+# 11. 获取服务器IP
 SERVER_IP=$(curl -s ifconfig.me)
 
 # 10. 完成提示

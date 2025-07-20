@@ -52,7 +52,8 @@ curl -o deploy.sh https://raw.githubusercontent.com/你的用户名/SecondBrain/
 
 ```
 📱 访问地址：
-   前端: http://服务器IP:3000
+   前端: http://服务器IP
+   后端API: http://服务器IP:8000
 
 👤 测试账号：
    邮箱: demo@example.com
@@ -73,7 +74,7 @@ echo "OPENROUTER_API_KEY=你的API_KEY" > backend/.env && \
 docker-compose up -d && \
 sleep 30 && \
 docker-compose exec backend alembic upgrade head && \
-echo "✅ 部署完成！访问 http://$(curl -s ifconfig.me):3000"
+echo "✅ 部署完成！访问 http://$(curl -s ifconfig.me)"
 ```
 
 ## 💡 获取 API Key
@@ -116,7 +117,7 @@ docker-compose restart
 - 登录腾讯云控制台
 - 找到你的轻量服务器
 - 防火墙 → 添加规则
-- 开放端口：3000, 8000
+- 开放端口：80, 8000
 
 ### 2. 服务启动失败？
 
