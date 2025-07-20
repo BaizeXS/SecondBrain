@@ -11,7 +11,7 @@ const API_CONFIG = {
   
   // 生产环境
   production: {
-    BASE_URL: process.env.REACT_APP_API_URL || '/api/v1',
+    BASE_URL: process.env.REACT_APP_API_URL || `${window.location.protocol}//${window.location.hostname}:8000/api/v1`,
     TIMEOUT: 30000,
     RETRY_ATTEMPTS: 3,
   },
