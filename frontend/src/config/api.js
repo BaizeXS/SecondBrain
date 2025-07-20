@@ -62,9 +62,11 @@ export const getApiConfig = () => {
 };
 
 // 默认导出
-export default {
+const apiUtils = {
   getApiBaseUrl,
   getApiTimeout,
   getApiRetryAttempts,
   getApiConfig,
-}; 
+};
+
+export default apiUtils; 
