@@ -73,7 +73,7 @@ asyncio.run(create_test_user())
 echo ""
 echo "✅ 启动完成！"
 echo "================================"
-echo "🌐 前端地址: http://localhost:3000"
+echo "🌐 前端地址: http://localhost:3000 (本地开发仍使用3000端口)"
 echo "🔧 后端 API: http://localhost:8000"
 echo "📚 API 文档: http://localhost:8000/docs"
 echo "💾 MinIO 控制台: http://localhost:9001 (minioadmin/minioadmin)"
