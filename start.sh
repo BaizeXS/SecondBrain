@@ -1,4 +1,4 @@
-#\!/bin/bash
+#!/bin/bash
 # 简单的启动脚本
 
 echo "🚀 启动 SecondBrain 项目..."
@@ -13,14 +13,32 @@ docker-compose up -d --build
 echo "⏳ 等待数据库启动..."
 sleep 10
 
-# 运行数据库迁移
-echo "📊 运行数据库迁移..."
-docker-compose exec backend alembic upgrade head
+# 初始化数据库表
+echo "📊 初始化数据库..."
+docker-compose exec backend uv run python -c "
+import asyncio
+from sqlalchemy.ext.asyncio import create_async_engine
+from app.core.database import Base
+from app.models import User, Space, Conversation, Message, Document, Agent, Note
+import os
+
+async def init_db():
+    DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql+asyncpg://secondbrain:secondbrain123@postgres:5432/secondbrain')
+    engine = create_async_engine(DATABASE_URL)
+    
+    async with engine.begin() as conn:
+        # 创建所有表
+        await conn.run_sync(Base.metadata.create_all)
+        print('✅ 数据库表创建成功')
+    
+    await engine.dispose()
+
+asyncio.run(init_db())
+"
 
 # 创建 MinIO bucket
 echo "📦 创建存储桶..."
-docker-compose exec backend python -c "
-from app.core.config import settings
+docker-compose exec backend uv run python -c "
 from minio import Minio
 client = Minio(
     'minio:9000',
@@ -44,4 +62,3 @@ echo "  - API文档: http://localhost:8000/api/v1/docs"
 echo "  - MinIO控制台: http://localhost:9001 (minioadmin/minioadmin)"
 echo ""
 echo "查看日志: docker-compose logs -f"
-EOF < /dev/null

@@ -335,6 +335,11 @@ export const documentAPI = {
 // ===== 聊天相关 API =====
 
 export const chatAPI = {
+  // 获取可用模型列表
+  getAvailableModels: async () => {
+    return apiRequest('/chat/models');
+  },
+  
   // 创建聊天完成（兼容OpenAI）
   createChatCompletion: async (requestData) => {
     return apiRequest('/chat/completions', {

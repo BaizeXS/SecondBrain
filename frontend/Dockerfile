@@ -12,8 +12,8 @@ RUN npm ci
 # 复制源代码
 COPY . .
 
-# 设置后端 API 地址
-ENV REACT_APP_API_URL=http://localhost:8000/api/v1
+# 设置后端 API 地址（使用相对路径，让 nginx 代理处理）
+ENV REACT_APP_API_URL=/api/v1
 
 # 构建项目
 RUN npm run build

@@ -14,6 +14,7 @@ import SaveProjectModal from '../components/modals/SaveProjectModal';
 import ChatInputInterface from '../components/chat/ChatInputInterface';
 import { useNavigate } from 'react-router-dom';
 import { useAgents, getIconComponent } from '../contexts/AgentContext'; // <<< 导入 useAgents 和 getIconComponent
+import apiService from '../services/apiService';
 
 
 const formatFileSize = (bytes) => {
@@ -46,10 +47,7 @@ const simplifyNoteForContext = n => ({
   aiAgent: n.aiAgent
 });
 
-const mockModelsDataFromHome = [ // Renamed to avoid conflict if ChatInputInterface has its own default
-  { id: 'deepseek', name: 'DeepSeek' },
-  { id: 'gpt4', name: 'GPT-4' },
-];
+// 将从后端API获取模型列表
 
 
 const HomePage = () => {
@@ -70,14 +68,42 @@ const HomePage = () => {
   const chatMessagesAreaRef = useRef(null);
 
   // States for ChatInputInterface props
-  const [selectedModel, setSelectedModel] = useState(mockModelsDataFromHome[0].id);
+  const [selectedModel, setSelectedModel] = useState('openrouter/auto');
   const [isDeepSearchMode, setIsDeepSearchMode] = useState(false);
+  const [availableModels, setAvailableModels] = useState([]);
 
   useEffect(() => {
     if (chatMessagesAreaRef.current) {
       chatMessagesAreaRef.current.scrollTop = chatMessagesAreaRef.current.scrollHeight;
     }
   }, [chatHistory]);
+
+  // 获取可用模型列表
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await apiService.chat.getAvailableModels();
+        const chatModels = response.models.filter(model => model.type === 'chat');
+        setAvailableModels(chatModels.map(model => ({
+          id: model.id,
+          name: model.name
+        })));
+        
+        // 如果当前选择的模型不在列表中，使用默认模型
+        if (chatModels.length > 0 && !chatModels.find(m => m.id === selectedModel)) {
+          setSelectedModel(response.default_chat_model || chatModels[0].id);
+        }
+      } catch (error) {
+        console.error('Failed to fetch models:', error);
+        // 如果获取失败，使用默认的模型列表
+        setAvailableModels([
+          { id: 'openrouter/auto', name: 'Auto (自动选择最佳模型)' }
+        ]);
+      }
+    };
+    
+    fetchModels();
+  }, []);
 
   // --- 步骤 1.1: 新增 useEffect，用于在挂载时检查 sessionStorage 中是否有恢复请求 ---
   useEffect(() => {
@@ -256,13 +282,31 @@ const HomePage = () => {
           return `Error calling custom API: ${error.message}`;
         }
       } else {
-        // --- 调用默认模型服务 (目前还是模拟) ---
-        console.log("Using default model service for agent:", activeAgentObject.name);
-        return new Promise(resolve => {
-          setTimeout(() => {
-            resolve(`AI mock response to "${messageText.substring(0, 30)}..." (Agent: ${activeAgentObject.name})`);
-          }, 800);
-        });
+        // --- 调用后端 API 服务 ---
+        console.log("Using backend API for agent:", activeAgentObject.name);
+        try {
+          // 构建聊天历史
+          const messages = [
+            { role: 'system', content: activeAgentObject.systemPrompt || '你是一个有帮助的助手。' },
+            ...chatHistory.map(msg => ({
+              role: msg.sender === 'user' ? 'user' : 'assistant',
+              content: msg.text
+            })),
+            { role: 'user', content: messageText }
+          ];
+          
+          const response = await apiService.chat.createChatCompletion({
+            model: selectedModel,
+            messages: messages,
+            temperature: 0.7,
+            stream: false
+          });
+          
+          return response.choices[0].message.content;
+        } catch (error) {
+          console.error("Backend API call failed:", error);
+          return `错误: ${error.message}`;
+        }
       }
     };
 
@@ -479,7 +523,7 @@ const HomePage = () => {
             showDownloadButton={true}
             onDownloadChat={handleDownloadChat}
             showModelSelector={true}
-            availableModels={mockModelsDataFromHome}
+            availableModels={availableModels}
             currentSelectedModelId={selectedModel}
             onModelChange={handleModelChange}
             showDeepSearchButton={true}
