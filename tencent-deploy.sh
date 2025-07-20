@@ -15,11 +15,19 @@ if ! command -v docker &> /dev/null; then
     curl -fsSL https://get.docker.com | sh
 fi
 
-# 2. 安装 Docker Compose（如果没有）
-if ! command -v docker-compose &> /dev/null; then
+# 2. 检查 Docker Compose（新版本使用 docker compose）
+if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    echo -e "${GREEN}Docker Compose 已安装（使用 docker compose）${NC}"
+    COMPOSE_CMD="docker compose"
+elif command -v docker-compose &> /dev/null; then
+    echo -e "${GREEN}Docker Compose 已安装（使用 docker-compose）${NC}"
+    COMPOSE_CMD="docker-compose"
+else
     echo -e "${YELLOW}安装 Docker Compose...${NC}"
+    # 尝试使用 Docker 插件方式
     apt-get update
-    apt-get install -y docker-compose
+    apt-get install -y docker-compose-plugin
+    COMPOSE_CMD="docker compose"
 fi
 
 # 3. 克隆项目
@@ -55,7 +63,7 @@ fi
 
 # 5. 启动服务
 echo -e "\n${YELLOW}启动服务...${NC}"
-docker-compose up -d
+$COMPOSE_CMD up -d
 
 # 6. 等待启动
 echo -e "\n${YELLOW}等待服务启动（30秒）...${NC}"
@@ -63,10 +71,10 @@ sleep 30
 
 # 7. 初始化数据库
 echo -e "\n${YELLOW}初始化数据库...${NC}"
-docker-compose exec -T backend alembic upgrade head
+$COMPOSE_CMD exec -T backend alembic upgrade head
 
 # 8. 创建测试账号
-docker-compose exec -T backend python << 'EOF'
+$COMPOSE_CMD exec -T backend python << 'EOF'
 import asyncio
 from sqlalchemy import select
 from app.db.session import SessionLocal
@@ -111,9 +119,9 @@ echo "   邮箱: demo@example.com"
 echo "   密码: Demo123!"
 echo ""
 echo "💡 常用命令："
-echo "   查看日志: docker-compose logs -f"
-echo "   重启服务: docker-compose restart"
+echo "   查看日志: $COMPOSE_CMD logs -f"
+echo "   重启服务: $COMPOSE_CMD restart"
 echo ""
 echo "🔄 更新代码："
-echo "   git pull && docker-compose restart"
+echo "   git pull && $COMPOSE_CMD restart"
 echo ""
