@@ -39,11 +39,12 @@ const LoginPage = () => {
     }
 
     try {
-      const loggedInSuccessfully = await login(email, password);
-      if (loggedInSuccessfully) {
+      // 使用 email 作为 username
+      const result = await login(email, password);
+      if (result.success) {
         navigate('/');
       } else {
-        setError('Invalid email or password.');
+        setError(result.error || 'Invalid email or password.');
       }
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');

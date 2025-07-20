@@ -14,6 +14,7 @@ import {
 import MessageFileAttachments from '../components/chat/MessageFileAttachments';
 import ChatInputInterface from '../components/chat/ChatInputInterface';
 import ShareProjectModal from '../components/modals/ShareProjectModal';
+import apiService from '../services/apiService';
 
 const agentConfigFromHomePage = {
   general: { icon: <FiMessageSquare />, color: '#4CAF50' },
@@ -53,11 +54,7 @@ const simplifyNoteForContext = n => ({
   aiAgent: n.aiAgent
 });
 
-// Mock models data for ChatInputInterface in ProjectChatView, if needed
-const projectChatMockModels = [
-  { id: 'deepseek', name: 'DeepSeek' },
-  { id: 'gpt4', name: 'GPT-4' },
-];
+// Models will be loaded from backend API
 
 
 // --- ProjectDashboardView Sub-component ---
@@ -155,7 +152,7 @@ const ProjectDashboardView = ({ projectData, onStartChat }) => {
 };
 
 // --- ProjectChatView Sub-component ---
-const ProjectChatView = ({ projectData, activeSessionId, onSendMessageToProject }) => {
+const ProjectChatView = ({ projectData, activeSessionId, onSendMessageToProject, availableModels = [] }) => {
   const chatMessagesViewRef = useRef(null);
   let messagesToShow = [];
   let sessionTitle = `New Chat for "${projectData.name}"`;
@@ -165,7 +162,7 @@ const ProjectChatView = ({ projectData, activeSessionId, onSendMessageToProject 
 
   // --- States specific to this Chat View ---
   const [projectChatActiveAgentId, setProjectChatActiveAgentId] = useState(null);
-  const [projectChatSelectedModel, setProjectChatSelectedModel] = useState(projectChatMockModels[0].id);
+  const [projectChatSelectedModel, setProjectChatSelectedModel] = useState('openrouter/auto');
   const [projectChatIsDeepSearch, setProjectChatIsDeepSearch] = useState(false);
 
   // 当 agents 加载完成后，设置默认的 active agent
@@ -192,7 +189,7 @@ const ProjectChatView = ({ projectData, activeSessionId, onSendMessageToProject 
 
   const handleSendMessageViaInterface = (messageText, filesFromInput, notesFromInput = []) => {
     // 传递整个 activeAgentObject，以便上层可以访问所有API配置
-    onSendMessageToProject(messageText, filesFromInput, notesFromInput, activeSessionId, projectChatActiveAgentId);
+    onSendMessageToProject(messageText, filesFromInput, notesFromInput, activeSessionId, projectChatActiveAgentId, projectChatSelectedModel);
   };
 
   const handleProjectChatModelChange = (e) => setProjectChatSelectedModel(e.target.value);
@@ -267,7 +264,7 @@ const ProjectChatView = ({ projectData, activeSessionId, onSendMessageToProject 
             showDownloadButton={false} // 可以保留下载功能，但其实现可能不同
             // onDownloadChat={handleProjectChatDownload} // 需要实现项目聊天下载逻辑
             showModelSelector={true}
-            availableModels={projectChatMockModels}
+            availableModels={availableModels}
             currentSelectedModelId={projectChatSelectedModel}
             onModelChange={handleProjectChatModelChange}
             showDeepSearchButton={true}
@@ -287,14 +284,37 @@ const ProjectPage = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { openRightSidebarWithView, isRightSidebarOpen, rightSidebarView, closeRightSidebar } = useSidebar();
-  const { projects, getProjectById, updateProject, updateProjectSharing, loadingProjects: projectsContextLoading } = useProjects();
+  const { projects, getProjectById, updateProject, updateProjectSharing, loadProjectDocuments, loadingProjects: projectsContextLoading } = useProjects();
   const { agents } = useAgents();
   const [projectData, setProjectData] = useState(null); // Local SSoT for this page after fetching
   const [pageLoading, setPageLoading] = useState(true);
   const [currentView, setCurrentView] = useState('dashboard');
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [conversationId, setConversationId] = useState(null); // 后端对话ID
+  const [availableModels, setAvailableModels] = useState([]);
 
+
+  // Effect to load available models
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await apiService.chat.getAvailableModels();
+        const chatModels = response.models.filter(model => model.type === 'chat');
+        setAvailableModels(chatModels.map(model => ({
+          id: model.id,
+          name: model.name
+        })));
+      } catch (error) {
+        console.error('Failed to fetch models:', error);
+        setAvailableModels([
+          { id: 'openrouter/auto', name: 'Auto (自动选择最佳模型)' }
+        ]);
+      }
+    };
+    
+    fetchModels();
+  }, []);
 
   // Effect 1: 当 projectId 或全局 projects 列表变化时，更新本地 projectData
   useEffect(() => {
@@ -405,41 +425,130 @@ const ProjectPage = () => {
   ]);
 
 
-  const handleSendMessageToProject = async (messageText, attachedFiles, attachedNotes = [], currentActiveSessionId, agentId) => {
+  // 辅助函数：上传文件到后端
+  const uploadFileToBackend = async (file, spaceId) => {
+    try {
+      const uploadedDoc = await apiService.document.uploadDocument(
+        spaceId,
+        file,
+        file.name,
+        ['chat-attachment']
+      );
+      return uploadedDoc;
+    } catch (error) {
+      console.error('File upload failed:', error);
+      throw error;
+    }
+  };
+
+  const handleSendMessageToProject = async (messageText, attachedFiles, attachedNotes = [], currentActiveSessionId, agentId, selectedModel = 'openrouter/auto') => {
     const activeAgentObject = agents.find(a => a.id === agentId);
-    if (!projectData || !updateProject || !activeAgentObject) {
-      console.error("Missing data for sending message: projectData, updateProject, or activeAgentObject");
+    if (!projectData || !activeAgentObject) {
+      console.error("Missing data for sending message: projectData or activeAgentObject");
       return;
     }
+    
+    try {
+      // 如果还没有创建对话，先创建一个
+      let currentConversationId = conversationId;
+      if (!currentConversationId) {
+        const conversationData = {
+          title: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : ''),
+          mode: 'chat',
+          space_id: parseInt(projectData.spaceId || projectData.id) // 关联到当前 Space
+        };
+        
+        const newConversation = await apiService.chat.createConversation(conversationData);
+        currentConversationId = newConversation.id;
+        setConversationId(currentConversationId);
+      }
+      
+      // 准备文档 ID 列表
+      const documentIds = [];
+      if (attachedFiles.length > 0) {
+        for (const file of attachedFiles) {
+          if (file.id && !isNaN(parseInt(file.id))) {
+            documentIds.push(parseInt(file.id));
+          } else if (file.rawFile) {
+            // 如果是新文件，先上传
+            const uploadedDoc = await uploadFileToBackend(file.rawFile, parseInt(projectData.spaceId || projectData.id));
+            if (uploadedDoc && uploadedDoc.id) {
+              documentIds.push(uploadedDoc.id);
+            }
+          }
+        }
+      }
+      
+      // 获取聊天历史（从当前会话）
+      let chatHistory = [];
+      if (currentActiveSessionId && projectData.sessions) {
+        const activeSession = projectData.sessions.find(s => s.sessionId === currentActiveSessionId);
+        if (activeSession && activeSession.messages) {
+          chatHistory = activeSession.messages;
+        }
+      }
+      
+      // 构建消息
+      const messages = [
+        { role: 'system', content: activeAgentObject.systemPrompt || '你是一个有帮助的助手。' },
+        ...chatHistory.map(msg => ({
+          role: msg.sender === 'user' ? 'user' : 'assistant',
+          content: msg.text
+        })),
+        { role: 'user', content: messageText }
+      ];
+      
+      // 调用聊天 API
+      const response = await apiService.chat.createChatCompletion({
+        model: selectedModel,
+        messages: messages,
+        temperature: 0.7,
+        stream: false,
+        conversation_id: currentConversationId,
+        document_ids: documentIds.length > 0 ? documentIds : undefined
+      });
+      
+      const aiReplyText = response.choices[0].message.content;
 
-    const newUserMessage = {
-      sender: 'user', text: messageText,
-      files: attachedFiles.map(f => ({ 
-        id: f.id, 
-        name: f.name, 
-        size: f.size, 
-        type: f.type, 
-        uploadedAt: f.uploadedAt, 
-        preview: f.preview,
-        isAiGenerated: f.isAiGenerated,
-        aiAgent: f.aiAgent
-      })),
-      notes: attachedNotes.map(n => ({ 
-        id: n.id, 
-        name: n.name, 
-        content: n.content, 
-        createdAt: n.createdAt, 
-        preview: n.preview,
-        isAiGenerated: n.isAiGenerated,
-        aiAgent: n.aiAgent
-      })),
-      timestamp: new Date().toISOString(),
-    };
+      // 更新本地状态以显示消息
+      const newUserMessage = {
+        sender: 'user', 
+        text: messageText,
+        files: attachedFiles.map(f => ({ 
+          id: f.id, 
+          name: f.name, 
+          size: f.size, 
+          type: f.type, 
+          uploadedAt: f.uploadedAt, 
+          preview: f.preview,
+          isAiGenerated: f.isAiGenerated,
+          aiAgent: f.aiAgent
+        })),
+        notes: attachedNotes.map(n => ({ 
+          id: n.id, 
+          name: n.name, 
+          content: n.content, 
+          createdAt: n.createdAt, 
+          preview: n.preview,
+          isAiGenerated: n.isAiGenerated,
+          aiAgent: n.aiAgent
+        })),
+        timestamp: new Date().toISOString(),
+      };
+      
+      const aiResponse = {
+        id: `msg-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: 'ai', 
+        text: aiReplyText, 
+        timestamp: new Date().toISOString(), 
+        files: []
+      };
 
-    let targetSessionId = currentActiveSessionId;
-    let updatedSessions = projectData.sessions ? [...projectData.sessions] : [];
-    let sessionModifiedOrCreated = false;
-    let newSessionWasCreated = false;
+      // 更新本地会话状态
+      let targetSessionId = currentActiveSessionId;
+      let updatedSessions = projectData.sessions ? [...projectData.sessions] : [];
+      let sessionModifiedOrCreated = false;
+      let newSessionWasCreated = false;
 
     if (targetSessionId) {
       const sessionIndex = updatedSessions.findIndex(s => s.sessionId === targetSessionId);
@@ -616,6 +725,10 @@ const ProjectPage = () => {
         updateProject(projectData.id, updatedProjectData);
       }
     }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert(`发送消息失败: ${error.message}`);
+    }
   };
 
   const handleStartChatView = (sessionId = null) => { setActiveSessionId(sessionId); setCurrentView('chat'); };
@@ -695,6 +808,7 @@ const ProjectPage = () => {
             activeSessionId={activeSessionId}
             onGoBackToDashboard={handleGoBackToDashboard}
             onSendMessageToProject={handleSendMessageToProject}
+            availableModels={availableModels}
           />
         )}
       </div>

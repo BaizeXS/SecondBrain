@@ -119,7 +119,7 @@ function App() {
                   />
                   <Route
                     path="/profile"
-                    element={<ProfilePage />}
+                    element={<ProtectedRoute><ProfilePage /></ProtectedRoute>}
                   />
                   <Route
                     path="/settings" // <<< 添加设置页面路由

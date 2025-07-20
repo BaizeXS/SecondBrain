@@ -60,6 +60,7 @@ const HomePage = () => {
   const [message, setMessage] = useState(''); // This is managed by ChatInputInterface now if passed as prop
   const [chatHistory, setChatHistory] = useState([]);
   const [activeAgent, setActiveAgent] = useState('general');
+  const [conversationId, setConversationId] = useState(null); // 添加对话ID状态
 
   const [currentChatFiles, setCurrentChatFiles] = useState([]);
   const [currentChatNotes, setCurrentChatNotes] = useState([]);
@@ -104,6 +105,42 @@ const HomePage = () => {
     
     fetchModels();
   }, []);
+  
+  // 加载最近的对话（如果有）
+  useEffect(() => {
+    const loadRecentConversation = async () => {
+      try {
+        // 获取最近的对话列表
+        const conversations = await apiService.chat.getConversations({
+          space_id: null,  // 只获取不属于任何 Space 的对话
+          limit: 1
+        });
+        
+        if (conversations.items && conversations.items.length > 0) {
+          const recentConv = conversations.items[0];
+          setConversationId(recentConv.id);
+          
+          // 加载对话消息
+          const conversationDetail = await apiService.chat.getConversation(recentConv.id);
+          if (conversationDetail.messages && conversationDetail.messages.length > 0) {
+            const history = conversationDetail.messages.map(msg => ({
+              sender: msg.role === 'user' ? 'user' : 'ai',
+              text: msg.content,
+              timestamp: msg.created_at
+            }));
+            setChatHistory(history);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load recent conversation:', error);
+      }
+    };
+    
+    // 只在没有从 sessionStorage 恢复会话时加载
+    if (chatHistory.length === 0) {
+      loadRecentConversation();
+    }
+  }, []);
 
   // --- 步骤 1.1: 新增 useEffect，用于在挂载时检查 sessionStorage 中是否有恢复请求 ---
   useEffect(() => {
@@ -130,10 +167,23 @@ const HomePage = () => {
   useEffect(() => {
     // 当 agents 加载完成且 activeAgentId 尚未设置时，设置默认的 active agent
     if (!loadingAgents && agents.length > 0 && !activeAgentId) {
+      // 如果是深度研究模式，尝试找到 Deep Research Agent
+      if (isDeepSearchMode) {
+        const researchAgent = agents.find(a => 
+          a.name === 'Deep Research' || 
+          (a.backendData && a.backendData.agent_type === 'research')
+        );
+        if (researchAgent) {
+          setActiveAgentId(researchAgent.id);
+          return;
+        }
+      }
+      
+      // 否则使用 General Agent
       const generalAgent = agents.find(a => a.name === 'General');
       setActiveAgentId(generalAgent ? generalAgent.id : agents[0].id);
     }
-  }, [agents, loadingAgents, activeAgentId]);
+  }, [agents, loadingAgents, activeAgentId, isDeepSearchMode]);
 
   // --- 步骤 1.2: 新增 useEffect，用于在组件卸载时保存临时会话 ---
   useEffect(() => {
@@ -238,7 +288,105 @@ const HomePage = () => {
     setCurrentChatFiles(prev => Array.from(new Map([...prev, ...newFilesToAdd].map(item => [item.id, item])).values()));
   };
 
-  const handleSendMessage = (messageText, filesFromInput, notesFromInput = []) => {
+  // 辅助函数：上传文件到后端
+  const uploadFileToBackend = async (file, spaceId = null) => {
+    try {
+      // 如果没有 spaceId，创建一个临时空间或使用默认空间
+      let targetSpaceId = spaceId;
+      if (!targetSpaceId) {
+        // 创建一个临时空间用于存储聊天文件
+        const tempSpace = await apiService.space.createSpace({
+          name: `Chat Files - ${new Date().toLocaleDateString()}`,
+          description: 'Temporary space for chat file uploads',
+          is_public: false,
+          tags: ['chat', 'temp']
+        });
+        targetSpaceId = tempSpace.id;
+      }
+      
+      // 上传文件
+      const uploadedDoc = await apiService.document.uploadDocument(
+        targetSpaceId,
+        file,
+        file.name,
+        ['chat-attachment']
+      );
+      
+      return uploadedDoc;
+    } catch (error) {
+      console.error('File upload failed:', error);
+      throw error;
+    }
+  };
+
+  const handleSendMessage = async (messageText, filesFromInput, notesFromInput = []) => {
+    // 如果是深度研究模式，调用深度研究 API
+    if (isDeepSearchMode) {
+      try {
+        const newUserMessage = {
+          sender: 'user', 
+          text: `🔍 深度研究：${messageText}`,
+          timestamp: new Date().toISOString()
+        };
+        setChatHistory(prev => [...prev, newUserMessage]);
+        
+        // 显示正在进行深度研究的提示
+        const researchingMessage = {
+          sender: 'ai',
+          text: '正在进行深度研究，这可能需要一些时间...',
+          timestamp: new Date().toISOString()
+        };
+        setChatHistory(prev => [...prev, researchingMessage]);
+        
+        // 调用深度研究 API
+        const response = await apiService.agent.createDeepResearch({
+          query: messageText,
+          mode: 'general', // 或 'academic'
+          stream: false
+        });
+        
+        // 更新最后的 AI 消息为研究结果
+        setChatHistory(prev => {
+          const newHistory = [...prev];
+          newHistory[newHistory.length - 1] = {
+            sender: 'ai',
+            text: response.result,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              space_id: response.space_id,
+              sources: response.sources,
+              total_sources: response.total_sources
+            }
+          };
+          return newHistory;
+        });
+        
+        // 如果研究创建了新的 Space，提示用户
+        if (response.space_id) {
+          setTimeout(() => {
+            if (window.confirm('深度研究已完成并创建了新的知识空间。是否前往查看？')) {
+              navigate(`/neurocore/project/${response.space_id}`);
+            }
+          }, 1000);
+        }
+        
+        return;
+      } catch (error) {
+        console.error('Deep research failed:', error);
+        setChatHistory(prev => {
+          const newHistory = [...prev];
+          newHistory[newHistory.length - 1] = {
+            sender: 'ai',
+            text: `深度研究失败：${error.message}`,
+            timestamp: new Date().toISOString()
+          };
+          return newHistory;
+        });
+        return;
+      }
+    }
+    
+    // 常规聊天逻辑
     const activeAgentObject = agents.find(a => a.id === activeAgentId);
     if (!activeAgentObject) {
       alert("Error: Active agent not found!");
@@ -285,6 +433,20 @@ const HomePage = () => {
         // --- 调用后端 API 服务 ---
         console.log("Using backend API for agent:", activeAgentObject.name);
         try {
+          // 如果还没有创建对话，先创建一个
+          let currentConversationId = conversationId;
+          if (!currentConversationId) {
+            const conversationData = {
+              title: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : ''),
+              mode: isDeepSearchMode ? 'search' : 'chat',
+              space_id: null // 不关联到任何 Space
+            };
+            
+            const newConversation = await apiService.chat.createConversation(conversationData);
+            currentConversationId = newConversation.id;
+            setConversationId(currentConversationId);
+          }
+          
           // 构建聊天历史
           const messages = [
             { role: 'system', content: activeAgentObject.systemPrompt || '你是一个有帮助的助手。' },
@@ -295,11 +457,38 @@ const HomePage = () => {
             { role: 'user', content: messageText }
           ];
           
+          // 准备文档 ID 列表（如果有文件附件）
+          const documentIds = [];
+          if (filesAttachedToMessage.length > 0) {
+            for (const file of filesAttachedToMessage) {
+              // 如果文件已经上传到后端（有数字 ID）
+              if (file.id && !isNaN(parseInt(file.id))) {
+                documentIds.push(parseInt(file.id));
+              } else if (file.rawFile) {
+                // 如果是新文件，先上传
+                try {
+                  const uploadedDoc = await uploadFileToBackend(file.rawFile, currentConversationId);
+                  if (uploadedDoc && uploadedDoc.id) {
+                    documentIds.push(uploadedDoc.id);
+                    // 更新文件信息
+                    file.id = uploadedDoc.id.toString();
+                    file.url = `/documents/${uploadedDoc.id}`;
+                  }
+                } catch (uploadError) {
+                  console.error('Failed to upload file:', uploadError);
+                }
+              }
+            }
+          }
+          
+          // 使用对话 ID 和文档 ID 调用聊天 API
           const response = await apiService.chat.createChatCompletion({
             model: selectedModel,
             messages: messages,
             temperature: 0.7,
-            stream: false
+            stream: false,
+            conversation_id: currentConversationId, // 添加对话ID
+            document_ids: documentIds.length > 0 ? documentIds : undefined // 添加文档ID
           });
           
           return response.choices[0].message.content;

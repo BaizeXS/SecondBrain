@@ -1,11 +1,23 @@
 // src/components/layout/Header.js
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './Header.module.css';
 import appLogo from '../../assets/images/app-logo.png'; // 全局应用 logo
-// import { useSidebar } from '../../contexts/SidebarContext'; // 不再需要 toggleLeftSidebar
+import { useAuth } from '../../contexts/AuthContext';
+import { FiUser, FiLogOut } from 'react-icons/fi';
 
 const Header = () => {
-  // const { isLeftSidebarOpen } = useSidebar(); // 如果需要根据状态改变头部其他样式可以保留
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  const handleProfileClick = () => {
+    navigate('/profile');
+  };
 
   return (
     <header className={styles.appHeader}>
@@ -15,7 +27,25 @@ const Header = () => {
         <span className={styles.headerAppName}>Second Brain</span>
       </div>
       <div className={styles.headerRight}>
-        {/* 语言切换等 */}
+        {user && (
+          <div className={styles.userSection}>
+            <button 
+              className={styles.userButton}
+              onClick={handleProfileClick}
+              title="Profile"
+            >
+              <FiUser />
+              <span className={styles.username}>{user.username || user.email}</span>
+            </button>
+            <button 
+              className={styles.logoutButton}
+              onClick={handleLogout}
+              title="Logout"
+            >
+              <FiLogOut />
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

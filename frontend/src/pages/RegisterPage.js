@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import styles from './AuthPage.module.css'; // 复用 AuthPage 样式
 import appLogo from '../assets/images/app-logo.png';
 import { MdLanguage, MdEmail, MdLockOutline, MdPersonOutline } from 'react-icons/md'; // MdLockOutline for confirm password
+import { useAuth } from '../contexts/AuthContext';
 
 const RegisterPage = () => {
   const [username, setUsername] = useState(''); // 可选的用户名
@@ -13,6 +14,7 @@ const RegisterPage = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { register } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,15 +42,23 @@ const RegisterPage = () => {
         return;
     }
 
-    // 模拟 API 调用
+    // 调用真实的注册 API
     try {
-      // 假设的 API 调用: await apiService.registerUser({ username, email, password });
-      console.log('Registering user:', { username, email, password });
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // 注册成功后通常会跳转到登录页，或自动登录并跳转到首页
-      alert('Registration successful! Please login.'); // 简单提示
-      navigate('/login');
+      const userData = {
+        username: username.trim() || email.trim(), // 如果没有用户名，使用email作为用户名
+        email: email.trim(),
+        password: password,
+        full_name: username.trim() || email.split('@')[0] // 使用用户名或email前缀作为全名
+      };
+      
+      const result = await register(userData);
+      
+      if (result.success) {
+        // 注册成功，已自动登录，跳转到首页
+        navigate('/');
+      } else {
+        setError(result.error || 'Registration failed. Please try again.');
+      }
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

@@ -1,8 +1,31 @@
 // src/contexts/AgentContext.js (新建文件和文件夹)
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { FiMessageSquare, FiBriefcase, FiEdit2, FiTerminal } from 'react-icons/fi';
+import apiService from '../services/apiService';
 
 const AgentContext = createContext();
+
+// 根据 Agent 类型获取图标
+const getIconForAgentType = (agentType) => {
+  const iconMap = {
+    'research': 'FiBriefcase',
+    'writing': 'FiEdit2',
+    'analysis': 'FiTerminal',
+    'general': 'FiMessageSquare'
+  };
+  return iconMap[agentType] || 'FiMessageSquare';
+};
+
+// 根据 Agent 类型获取颜色
+const getColorForAgentType = (agentType) => {
+  const colorMap = {
+    'research': '#FF9800',
+    'writing': '#9C27B0',
+    'analysis': '#00BCD4',
+    'general': '#4CAF50'
+  };
+  return colorMap[agentType] || '#4CAF50';
+};
 
 // 初始默认的 Agents
 const defaultAgents = [
@@ -68,22 +91,52 @@ export const AgentProvider = ({ children }) => {
   const [agents, setAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
 
-  // 加载 Agents (可以从 localStorage 或未来从 API)
+  // 加载 Agents (从后端 API)
   useEffect(() => {
-    try {
-      const storedAgents = localStorage.getItem('customAgents');
-      if (storedAgents) {
-        // 合并默认 Agents 和用户自定义的 Agents
-        const customAgents = JSON.parse(storedAgents);
-        setAgents([...defaultAgents, ...customAgents]);
-      } else {
+    const loadAgents = async () => {
+      try {
+        setLoadingAgents(true);
+        
+        // 从后端获取 Agent 列表
+        const response = await apiService.agent.getAgents();
+        const backendAgents = response.items || [];
+        
+        // 转换后端 Agent 格式为前端格式
+        const formattedAgents = backendAgents.map(agent => ({
+          id: `agent-${agent.id}`,
+          name: agent.name,
+          description: agent.description,
+          icon: getIconForAgentType(agent.agent_type),
+          color: getColorForAgentType(agent.agent_type),
+          systemPrompt: agent.prompt_template || `You are ${agent.name}. ${agent.description}`,
+          isSystem: !agent.user_id, // 官方 Agent 不可删除
+          apiProvider: 'default',
+          apiEndpoint: '',
+          apiKey: '',
+          modelName: 'openrouter/auto',
+          // 保存原始后端数据
+          backendData: agent
+        }));
+        
+        // 从 localStorage 加载用户自定义的本地 Agent
+        const storedAgents = localStorage.getItem('customAgents');
+        let customAgents = [];
+        if (storedAgents) {
+          customAgents = JSON.parse(storedAgents);
+        }
+        
+        // 合并后端 Agent 和本地自定义 Agent
+        setAgents([...formattedAgents, ...customAgents]);
+      } catch (error) {
+        console.error("AgentContext: Error loading agents from backend", error);
+        // 如果后端加载失败，使用默认的本地 Agent
         setAgents(defaultAgents);
+      } finally {
+        setLoadingAgents(false);
       }
-    } catch (error) {
-      console.error("AgentContext: Error loading custom agents", error);
-      setAgents(defaultAgents);
-    }
-    setLoadingAgents(false);
+    };
+    
+    loadAgents();
   }, []);
 
   // 保存用户自定义的 Agents 到 localStorage

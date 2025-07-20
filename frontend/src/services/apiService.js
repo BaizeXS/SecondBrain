@@ -347,6 +347,14 @@ export const chatAPI = {
       body: JSON.stringify(requestData),
     });
   },
+  
+  // 创建新对话
+  createConversation: async (conversationData) => {
+    return apiRequest('/chat/conversations', {
+      method: 'POST',
+      body: JSON.stringify(conversationData),
+    });
+  },
 
   // 获取对话列表
   getConversations: async (params = {}) => {
@@ -521,6 +529,14 @@ export const agentAPI = {
   // 删除代理
   deleteAgent: async (agentId) => {
     return apiRequest(`/agents/${agentId}`, { method: 'DELETE' });
+  },
+  
+  // 创建深度研究
+  createDeepResearch: async (requestData) => {
+    return apiRequest('/agents/deep-research', {
+      method: 'POST',
+      body: JSON.stringify(requestData),
+    });
   },
 };
 

@@ -7,6 +7,7 @@ import { useSidebar } from '../../contexts/SidebarContext';
 import { useProjects } from '../../contexts/ProjectContext';
 import { useAgents } from '../../contexts/AgentContext'; // 确保路径正确
 import { useChat } from '../../contexts/ChatContext'; // 新增：导入ChatContext
+import apiService from '../../services/apiService'; // 添加apiService导入
 import {
   FiFileText, FiEdit3, FiSearch, FiFilter, FiPlus, FiMessageSquare,
   FiChevronsRight, FiChevronsLeft, FiDownload, FiTrash2, FiX,
@@ -450,40 +451,125 @@ const NotesListView = ({ notes: initialNotes }) => {
   const handleCancelEdit = () => { setIsEditing(false); setCurrentNoteTitle(''); setCurrentNoteContent(''); setEditingNoteId(null); };
   const handleEditNoteClick = (note) => { setIsEditing(true); setCurrentNoteTitle(note.name); setCurrentNoteContent(note.content || ''); setEditingNoteId(note.id); };
 
-  const handleSaveNote = () => {
+  const handleSaveNote = async () => {
     if (!currentNoteTitle.trim() && !currentNoteContent.trim()) { alert("Note is empty."); return; }
-    let updatedFullNoteList;
-    const currentNotes = initialNotes || [];
-    if (editingNoteId) {
-      updatedFullNoteList = currentNotes.map(n =>
-        n.id === editingNoteId ? { ...n, name: currentNoteTitle.trim() || "Untitled", preview: currentNoteContent.substring(0, 50) + "...", content: currentNoteContent, createdAt: n.createdAt || new Date().toISOString() } : n
-      );
-    } else {
-      const newNote = {
-        id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        name: currentNoteTitle.trim() || "Untitled Note",
-        preview: currentNoteContent.substring(0, 50) + "...",
-        content: currentNoteContent,
-        createdAt: new Date().toISOString(),
-      };
-      updatedFullNoteList = [...currentNotes, newNote];
+    
+    try {
+      // 获取当前的 space_id（如果在项目视图中）
+      const spaceId = rightSidebarView?.data?.projectId || rightSidebarView?.data?.space_id;
+      
+      let savedNote;
+      const currentNotes = initialNotes || [];
+      
+      if (editingNoteId) {
+        // 编辑现有笔记
+        const noteId = editingNoteId.toString().replace('note-', '');
+        
+        // 如果有 space_id，则保存到后端
+        if (spaceId && !editingNoteId.startsWith('note-temp-')) {
+          savedNote = await apiService.note.updateNote(noteId, {
+            title: currentNoteTitle.trim() || "Untitled",
+            content: currentNoteContent,
+            space_id: parseInt(spaceId)
+          });
+        }
+        
+        // 更新本地列表
+        const updatedNote = savedNote ? {
+          id: savedNote.id.toString(),
+          name: savedNote.title,
+          preview: savedNote.content?.substring(0, 50) + "...",
+          content: savedNote.content,
+          createdAt: savedNote.created_at,
+          updatedAt: savedNote.updated_at
+        } : {
+          id: editingNoteId,
+          name: currentNoteTitle.trim() || "Untitled",
+          preview: currentNoteContent.substring(0, 50) + "...",
+          content: currentNoteContent,
+          createdAt: new Date().toISOString()
+        };
+        
+        const updatedFullNoteList = currentNotes.map(n =>
+          n.id === editingNoteId ? updatedNote : n
+        );
+        
+        if (typeof onUpdateNotesCallback === 'function') {
+          onUpdateNotesCallback(updatedFullNoteList.map(simplifyNoteForCallback));
+        }
+      } else {
+        // 创建新笔记
+        if (spaceId) {
+          // 保存到后端
+          savedNote = await apiService.note.createNote({
+            title: currentNoteTitle.trim() || "Untitled Note",
+            content: currentNoteContent,
+            space_id: parseInt(spaceId)
+          });
+          
+          const newNote = {
+            id: savedNote.id.toString(),
+            name: savedNote.title,
+            preview: savedNote.content?.substring(0, 50) + "...",
+            content: savedNote.content,
+            createdAt: savedNote.created_at,
+            updatedAt: savedNote.updated_at
+          };
+          
+          const updatedFullNoteList = [...currentNotes, newNote];
+          
+          if (typeof onUpdateNotesCallback === 'function') {
+            onUpdateNotesCallback(updatedFullNoteList.map(simplifyNoteForCallback));
+          }
+        } else {
+          // 如果没有 space_id，只保存到本地
+          const newNote = {
+            id: `note-temp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            name: currentNoteTitle.trim() || "Untitled Note",
+            preview: currentNoteContent.substring(0, 50) + "...",
+            content: currentNoteContent,
+            createdAt: new Date().toISOString(),
+          };
+          
+          const updatedFullNoteList = [...currentNotes, newNote];
+          
+          if (typeof onUpdateNotesCallback === 'function') {
+            onUpdateNotesCallback(updatedFullNoteList.map(simplifyNoteForCallback));
+          }
+        }
+      }
+      
+      handleCancelEdit();
+    } catch (error) {
+      console.error("Error saving note:", error);
+      alert("Failed to save note: " + error.message);
     }
-    if (typeof onUpdateNotesCallback === 'function') {
-      onUpdateNotesCallback(updatedFullNoteList.map(simplifyNoteForCallback));
-    } else {
-      console.warn(`NotesListView: onUpdateNotesCallback not available for view type "${rightSidebarView?.type}". Unable to save note to source.`);
-    }
-    handleCancelEdit();
   };
 
-  const handleDeleteNote = (noteIdToDelete) => {
-    const updatedFullNoteList = (initialNotes || []).filter(note => note.id !== noteIdToDelete);
-    if (typeof onUpdateNotesCallback === 'function') {
-      onUpdateNotesCallback(updatedFullNoteList.map(simplifyNoteForCallback));
-    } else {
-      console.warn(`NotesListView: onUpdateNotesCallback not available for view type "${rightSidebarView?.type}". Unable to delete note from source.`);
+  const handleDeleteNote = async (noteIdToDelete) => {
+    try {
+      // 获取当前的 space_id（如果在项目视图中）
+      const spaceId = rightSidebarView?.data?.projectId || rightSidebarView?.data?.space_id;
+      
+      // 如果有 space_id 且不是临时笔记，则从后端删除
+      if (spaceId && !noteIdToDelete.startsWith('note-temp-')) {
+        const noteId = noteIdToDelete.toString().replace('note-', '');
+        await apiService.note.deleteNote(noteId);
+      }
+      
+      // 更新本地列表
+      const updatedFullNoteList = (initialNotes || []).filter(note => note.id !== noteIdToDelete);
+      if (typeof onUpdateNotesCallback === 'function') {
+        onUpdateNotesCallback(updatedFullNoteList.map(simplifyNoteForCallback));
+      } else {
+        console.warn(`NotesListView: onUpdateNotesCallback not available for view type "${rightSidebarView?.type}". Unable to delete note from source.`);
+      }
+      
+      if (isEditing && editingNoteId === noteIdToDelete) handleCancelEdit();
+    } catch (error) {
+      console.error("Error deleting note:", error);
+      alert("Failed to delete note: " + error.message);
     }
-    if (isEditing && editingNoteId === noteIdToDelete) handleCancelEdit();
   };
 
   const handleSearchIconClick = () => setIsSearching(true);
