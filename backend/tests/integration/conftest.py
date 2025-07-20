@@ -21,9 +21,14 @@ from app.schemas.users import UserCreate
 from app.services import ai_service
 
 # 使用主数据库（简化配置，毕业设计项目不需要独立测试数据库）
+# 直接从环境变量读取，如果没有就用默认值
+# Docker容器内会自动使用.env文件的配置
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://secondbrain:secondbrain123@localhost:5432/secondbrain",
+    os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://secondbrain:secondbrain123@localhost:5432/secondbrain",
+    ),
 )
 
 # 创建测试引擎

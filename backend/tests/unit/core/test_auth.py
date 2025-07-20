@@ -15,8 +15,8 @@ from app.core.auth import (
     get_current_user,
     oauth2_scheme,
 )
-from app.core.password import get_password_hash, verify_password
 from app.core.config import settings
+from app.core.password import get_password_hash, verify_password
 from app.models.models import User
 
 
@@ -408,10 +408,10 @@ class TestConfiguration:
         # Test that password functions work correctly
         test_password = "test_password_123"
         test_hash = get_password_hash(test_password)
-        
+
         # Verify the hash starts with bcrypt prefix
         assert test_hash.startswith("$2b$")
-        
+
         # Test verification
         assert verify_password(test_password, test_hash)
         assert not verify_password("wrong_password", test_hash)

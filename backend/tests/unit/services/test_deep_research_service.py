@@ -94,7 +94,7 @@ class TestCreateResearch:
         service = DeepResearchService()
         # 设置没有OpenRouter的AI服务
         service.ai_service.openrouter_client = None
-        
+
         result = await service.create_research("test query")
 
         assert result["error"] == "Deep Research功能未配置"
@@ -129,10 +129,10 @@ class TestCreateResearch:
         # 设置AI服务
         deep_research_service.ai_service.chat = AsyncMock(return_value="Research content")
         deep_research_service.ai_service.openrouter_client = Mock()
-        
+
         with patch("app.services.deep_research_service.crud_space") as mock_crud_space:
             mock_crud_space.create = AsyncMock(return_value=mock_space)
-            
+
             result = await deep_research_service.create_research(
                 query="学术研究主题",
                 mode="academic",
@@ -156,7 +156,7 @@ class TestCreateResearch:
         """测试使用现有空间创建研究."""
         deep_research_service.ai_service.chat = AsyncMock(return_value="Research content")
         deep_research_service.ai_service.openrouter_client = Mock()
-        
+
         result = await deep_research_service.create_research(
             query="测试查询",
             mode="general",
@@ -364,7 +364,7 @@ class TestStreamResearch:
         service = DeepResearchService()
         # 设置没有OpenRouter的AI服务
         service.ai_service.openrouter_client = None
-        
+
         results = []
         async for chunk in service.stream_research(
             query="测试",
