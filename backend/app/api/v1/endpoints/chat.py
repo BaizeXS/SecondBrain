@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.core.auth import get_current_active_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.models import Conversation, User
 from app.models.models import Message as DBMessage
@@ -52,6 +53,99 @@ from app.services.branch_service import branch_service
 from app.services.chat_service import chat_service
 
 router = APIRouter()
+
+
+# ===== 模型列表接口 =====
+
+
+@router.get("/models")
+async def get_available_models(
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, Any]:
+    """获取可用的AI模型列表."""
+    from app.services.ai_service import AIService, ai_service
+
+    models = []
+
+    # 添加 OpenRouter Auto 模型
+    if settings.OPENROUTER_API_KEY:
+        models.append(
+            {
+                "id": AIService.AUTO_MODEL,
+                "name": "Auto (自动选择最佳模型)",
+                "provider": "openrouter",
+                "type": "chat",
+            }
+        )
+
+        # 添加所有聊天模型
+        for category, model_list in AIService.CHAT_MODELS.items():
+            for model_id in model_list:
+                model_name = model_id.replace(":", " ").replace("/", " - ").title()
+                models.append(
+                    {
+                        "id": model_id,
+                        "name": f"{model_name} ({category})",
+                        "provider": "openrouter",
+                        "type": "chat",
+                        "category": category,
+                        "supports_vision": model_id
+                        in (
+                            AIService.VISION_MODELS.get("premium", [])
+                            + AIService.VISION_MODELS.get("free", [])
+                        ),
+                    }
+                )
+
+    # 添加 Perplexity 搜索模型
+    if settings.PERPLEXITY_API_KEY:
+        for model_id in AIService.SEARCH_MODELS.get("perplexity", []):
+            model_name = model_id.replace("/", " - ").title()
+            models.append(
+                {
+                    "id": model_id,
+                    "name": f"{model_name} (搜索优化)",
+                    "provider": "perplexity",
+                    "type": "search",
+                }
+            )
+
+    # 添加 Ollama 本地模型
+    if settings.OLLAMA_ENABLED and ai_service.ollama_provider:
+        try:
+            ollama_models = await ai_service.ollama_provider._list_models()
+            for model_name in ollama_models:
+                models.append(
+                    {
+                        "id": f"ollama/{model_name}",
+                        "name": f"{model_name} (本地)",
+                        "provider": "ollama",
+                        "type": "chat",
+                    }
+                )
+        except Exception:
+            pass
+
+    # 获取自定义提供商的模型
+    custom_providers = await ai_service.list_custom_providers()
+    for provider_name, provider_info in custom_providers.items():
+        for model_id in provider_info.get("models", []):
+            models.append(
+                {
+                    "id": f"{provider_name}/{model_id}",
+                    "name": f"{model_id} ({provider_name})",
+                    "provider": "custom",
+                    "type": "chat",
+                }
+            )
+
+    return {
+        "models": models,
+        "default_chat_model": settings.DEFAULT_CHAT_MODEL,
+        "default_search_model": settings.DEFAULT_SEARCH_MODEL,
+        "providers": AIService.MODEL_PROVIDERS,
+        "total": len(models),
+    }
 
 
 # ===== OpenAI 兼容接口 =====
