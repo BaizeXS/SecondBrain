@@ -7,18 +7,16 @@ from typing import Any
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.password import get_password_hash as pwd_hash
+from app.core.password import verify_password as pwd_verify
 from app.models.models import User
 
 logger = logging.getLogger(__name__)
-
-# 密码加密上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2令牌URL
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
@@ -30,7 +28,7 @@ class AuthService:
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """验证密码."""
-        return pwd_context.verify(plain_password, hashed_password)
+        return pwd_verify(plain_password, hashed_password)
 
     @staticmethod
     def validate_password_strength(password: str) -> None:
@@ -68,7 +66,7 @@ class AuthService:
     @staticmethod
     def get_password_hash(password: str) -> str:
         """生成密码哈希."""
-        return pwd_context.hash(password)
+        return pwd_hash(password)
 
     @staticmethod
     def create_access_token(

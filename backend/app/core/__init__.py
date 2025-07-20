@@ -14,7 +14,6 @@ from app.core.auth import (
     get_current_premium_user,
     get_current_user,
     oauth2_scheme,
-    pwd_context,
 )
 from app.core.config import settings
 from app.core.database import (
@@ -38,7 +37,6 @@ __all__ = [
     "get_current_active_user",
     "get_current_premium_user",
     "oauth2_scheme",
-    "pwd_context",
     # Config exports
     "settings",
     # Database exports

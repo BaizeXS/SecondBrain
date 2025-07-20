@@ -167,7 +167,7 @@ async def test_authenticated_endpoints(token):
                 "description": "API测试创建的空间",
             }
             response = await client.post(
-                f"{BASE_URL}/spaces", headers=headers, json=space_data
+                f"{BASE_URL}/spaces/", headers=headers, json=space_data
             )
             record_result(
                 "/spaces", "POST", response.status_code == 201, "", response.status_code
@@ -175,11 +175,11 @@ async def test_authenticated_endpoints(token):
             if response.status_code == 201:
                 space_id = response.json()["id"]
         except Exception as e:
-            record_result("/spaces", "POST", False, str(e))
+            record_result("/spaces/", "POST", False, str(e))
 
         # GET /spaces
         try:
-            response = await client.get(f"{BASE_URL}/spaces", headers=headers)
+            response = await client.get(f"{BASE_URL}/spaces/", headers=headers)
             record_result(
                 "/spaces", "GET", response.status_code == 200, "", response.status_code
             )
@@ -188,7 +188,7 @@ async def test_authenticated_endpoints(token):
                 if spaces:
                     space_id = spaces[0]["id"]
         except Exception as e:
-            record_result("/spaces", "GET", False, str(e))
+            record_result("/spaces/", "GET", False, str(e))
 
         if space_id:
             # GET /spaces/{space_id}
@@ -236,7 +236,7 @@ async def test_authenticated_endpoints(token):
                     "note_type": "manual",
                 }
                 response = await client.post(
-                    f"{BASE_URL}/notes", headers=headers, json=note_data
+                    f"{BASE_URL}/notes/", headers=headers, json=note_data
                 )
                 record_result(
                     "/notes",
@@ -252,7 +252,7 @@ async def test_authenticated_endpoints(token):
 
         # GET /notes
         try:
-            response = await client.get(f"{BASE_URL}/notes", headers=headers)
+            response = await client.get(f"{BASE_URL}/notes/", headers=headers)
             record_result(
                 "/notes", "GET", response.status_code == 200, "", response.status_code
             )
@@ -357,7 +357,7 @@ async def test_authenticated_endpoints(token):
                 if response.status_code == 201:
                     conversation_id = response.json()["id"]
             except Exception as e:
-                record_result("/chat/conversations", "POST", False, str(e))
+                record_result("/chat/conversations/", "POST", False, str(e))
 
         # GET /chat/conversations
         try:
@@ -365,7 +365,7 @@ async def test_authenticated_endpoints(token):
                 f"{BASE_URL}/chat/conversations", headers=headers
             )
             record_result(
-                "/chat/conversations",
+                "/chat/conversations/",
                 "GET",
                 response.status_code == 200,
                 "",
@@ -376,7 +376,7 @@ async def test_authenticated_endpoints(token):
                 if conversations:
                     conversation_id = conversations[0]["id"]
         except Exception as e:
-            record_result("/chat/conversations", "GET", False, str(e))
+            record_result("/chat/conversations/", "GET", False, str(e))
 
         if conversation_id:
             # GET /chat/conversations/{conversation_id}
@@ -463,31 +463,14 @@ async def test_authenticated_endpoints(token):
         except Exception as e:
             record_result("/chat/messages", "GET", False, str(e))
 
-        # POST /chat/search
-        try:
-            search_data = {
-                "query": "测试搜索",
-                "model": "openrouter/perplexity/sonar-online"
-            }
-            response = await client.post(
-                f"{BASE_URL}/chat/search", headers=headers, json=search_data
-            )
-            record_result(
-                "/chat/search",
-                "POST",
-                response.status_code in [201, 400],  # 可能需要特定配置
-                "AI搜索",
-                response.status_code,
-            )
-        except Exception as e:
-            record_result("/chat/search", "POST", False, str(e))
+        # 注意: /chat/search 端点不存在，深度搜索功能在 /agents/deep-research
 
         # 文档相关
         print("\n📄 测试文档端点...")
 
         # GET /documents
         try:
-            response = await client.get(f"{BASE_URL}/documents", headers=headers)
+            response = await client.get(f"{BASE_URL}/documents/", headers=headers)
             record_result(
                 "/documents",
                 "GET",
@@ -516,25 +499,7 @@ async def test_authenticated_endpoints(token):
         except Exception as e:
             record_result("/documents/search", "POST", False, str(e))
 
-        # POST /documents/web-import
-        if space_id:
-            try:
-                import_data = {"url": "https://example.com", "space_id": space_id}
-                response = await client.post(
-                    f"{BASE_URL}/documents/web-import",
-                    headers=headers,
-                    json=import_data,
-                )
-                # 可能失败，但记录结果
-                record_result(
-                    "/documents/web-import",
-                    "POST",
-                    response.status_code in [201, 400, 422],
-                    "URL导入测试",
-                    response.status_code,
-                )
-            except Exception as e:
-                record_result("/documents/web-import", "POST", False, str(e))
+        # 注意: /documents/web-import 端点不存在，正确的是 /documents/batch-import-urls
 
         # POST /documents/analyze-url
         try:
@@ -588,7 +553,7 @@ async def test_authenticated_endpoints(token):
 
         # GET /citations
         try:
-            response = await client.get(f"{BASE_URL}/citations", headers=headers)
+            response = await client.get(f"{BASE_URL}/citations/", headers=headers)
             record_result(
                 "/citations",
                 "GET",
@@ -608,10 +573,11 @@ async def test_authenticated_endpoints(token):
                     "authors": ["测试作者"],
                     "year": 2024,
                     "space_id": space_id,
-                    "citation_type": "article"
+                    "citation_type": "article",
+                    "bibtex_key": f"test_{datetime.now().strftime('%Y%m%d%H%M%S')}"
                 }
                 response = await client.post(
-                    f"{BASE_URL}/citations", headers=headers, json=citation_data
+                    f"{BASE_URL}/citations/", headers=headers, json=citation_data
                 )
                 record_result(
                     "/citations",
@@ -780,18 +746,7 @@ async def test_authenticated_endpoints(token):
             except Exception as e:
                 record_result("/agents/deep-research", "POST", False, str(e))
 
-        # GET /agents/tasks
-        try:
-            response = await client.get(f"{BASE_URL}/agents/tasks", headers=headers)
-            record_result(
-                "/agents/tasks",
-                "GET",
-                response.status_code == 200,
-                "",
-                response.status_code,
-            )
-        except Exception as e:
-            record_result("/agents/tasks", "GET", False, str(e))
+        # 注意: /agents/tasks 端点不存在
 
         # GET /agents/
         try:
@@ -899,8 +854,8 @@ async def main():
         # POST /auth/change-password
         try:
             change_pwd_data = {
-                "current_password": "Demo123456!",
-                "new_password": "Demo123456!"  # 改回相同密码
+                "old_password": "Demo123456!",
+                "new_password": "Demo123456!"  # 保持相同密码，避免影响后续测试
             }
             response = await client.post(
                 f"{BASE_URL}/auth/change-password",

@@ -14,8 +14,8 @@ from app.core.auth import (
     get_current_premium_user,
     get_current_user,
     oauth2_scheme,
-    pwd_context,
 )
+from app.core.password import get_password_hash, verify_password
 from app.core.config import settings
 from app.models.models import User
 
@@ -27,7 +27,7 @@ def mock_user():
     user.id = 1
     user.username = "testuser"
     user.email = "test@example.com"
-    user.hashed_password = pwd_context.hash("TestPass123")
+    user.hashed_password = get_password_hash("TestPass123")
     user.full_name = "Test User"
     user.is_active = True
     user.is_premium = False
@@ -403,13 +403,18 @@ class TestConfiguration:
         # The tokenUrl is passed in constructor
         assert hasattr(oauth2_scheme, "scheme_name")
 
-    def test_password_context_configuration(self):
-        """Test password context is configured correctly."""
-        # CryptContext stores schemes as a list
-        assert pwd_context.identify("$2b$12$test") == "bcrypt"
-        # Test that bcrypt is available
-        test_hash = pwd_context.hash("test")
-        assert pwd_context.verify("test", test_hash)
+    def test_password_functions(self):
+        """Test password hashing and verification functions."""
+        # Test that password functions work correctly
+        test_password = "test_password_123"
+        test_hash = get_password_hash(test_password)
+        
+        # Verify the hash starts with bcrypt prefix
+        assert test_hash.startswith("$2b$")
+        
+        # Test verification
+        assert verify_password(test_password, test_hash)
+        assert not verify_password("wrong_password", test_hash)
 
 
 class TestPasswordValidation:

@@ -12,8 +12,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from sqlalchemy import delete, select
 
-from app.core.auth import AuthService
 from app.core.database import async_session_factory
+from app.core.password import get_password_hash
 from app.models.models import Conversation, Note, Space, User
 
 
@@ -33,7 +33,7 @@ async def create_demo_data():
             username="demo_user",
             email="demo@example.com",
             full_name="演示用户",
-            hashed_password=AuthService.get_password_hash("Demo123456!"),
+            hashed_password=get_password_hash("Demo123456!"),
             is_active=True,
         )
         db.add(demo_user)
@@ -80,6 +80,8 @@ async def create_demo_data():
             title="AI助手对话",
             space_id=demo_space.id,
             user_id=demo_user.id,
+            mode="chat",  # 必填字段
+            model="openrouter/auto",  # 设置默认模型
         )
         db.add(demo_conversation)
 
@@ -102,11 +104,21 @@ async def clean_demo_data():
 
         print("🧹 清除演示数据...")
 
-        # 删除相关数据（级联删除会处理大部分）
-        await db.execute(delete(User).where(User.id == demo_user.id))
-        await db.commit()
+        try:
+            # 先删除相关的对话
+            await db.execute(delete(Conversation).where(Conversation.user_id == demo_user.id))
+            # 删除相关的笔记
+            await db.execute(delete(Note).where(Note.user_id == demo_user.id))
+            # 删除相关的空间
+            await db.execute(delete(Space).where(Space.user_id == demo_user.id))
+            # 最后删除用户
+            await db.execute(delete(User).where(User.id == demo_user.id))
 
-        print("✅ 演示数据已清除")
+            await db.commit()
+            print("✅ 演示数据已清除")
+        except Exception as e:
+            print(f"❌ 清除失败: {e}")
+            await db.rollback()
 
 
 async def main():
