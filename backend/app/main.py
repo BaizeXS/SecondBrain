@@ -82,7 +82,7 @@ app.add_middleware(
 if not settings.DEBUG:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.secondbrain.ai"],
+        allowed_hosts=["localhost", "127.0.0.1", "43.160.192.140", "*.secondbrain.ai"],
     )
 
 

@@ -37,10 +37,20 @@ export const ProjectProvider = ({ children }) => {
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
   const [nextColorIndex, setNextColorIndex] = useState(0);
 
-  // 从后端加载空间列表
+  // 从后端加载空间列表 - 修改后的版本
   const loadProjects = useCallback(async () => {
     try {
       setLoadingProjects(true);
+      
+      // 检查是否有认证 token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.log("ProjectContext: No token found, skipping projects load");
+        setProjects([]);
+        setLoadingProjects(false);
+        return;
+      }
+      
       const response = await spaceAPI.getSpaces({ limit: 100 });
       const spaces = response.spaces || [];
       

@@ -3,9 +3,9 @@
 // API基础配置
 import { getApiBaseUrl } from '../config/api';
 
-const API_BASE_URL = getApiBaseUrl();
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
-// 通用请求函数
+// 在 apiRequest 函数中添加更好的错误处理
 const apiRequest = async (endpoint, options = {}) => {
   const token = localStorage.getItem('access_token');
   
@@ -25,19 +25,61 @@ const apiRequest = async (endpoint, options = {}) => {
     },
   };
 
+  console.log('API Request Headers:', config.headers);
+
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      
+      // 如果是认证错误且没有 token，返回空结果而不是抛出错误
+      if ((response.status === 401 || response.status === 400) && !token) {
+        console.log(`Skipping API call due to missing authentication: ${endpoint}`);
+        return getEmptyResponse(endpoint);
+      }
+      
+      // 如果是 /users/me 接口失败，说明 token 无效
+      if (endpoint === '/users/me' && (response.status === 401 || response.status === 400)) {
+        throw new Error('Token validation failed');
+      }
+      
+      // 如果有 token 但仍然是 400/401，记录详细错误但返回空结果以避免崩溃
+      if (response.status === 400 || response.status === 401) {
+        console.warn(`API call failed with authentication: ${endpoint}`, errorData);
+        return getEmptyResponse(endpoint);
+      }
+      
       throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
     }
     
     return await response.json();
   } catch (error) {
+    // 网络错误处理
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      console.error(`Network error for ${endpoint}:`, error);
+      return getEmptyResponse(endpoint);
+    }
+    
     console.error(`API Request failed: ${endpoint}`, error);
     throw error;
   }
+};
+
+// 辅助函数：根据端点返回空响应
+const getEmptyResponse = (endpoint) => {
+  if (endpoint.includes('/agents')) {
+    return { agents: [], items: [] };
+  } else if (endpoint.includes('/spaces')) {
+    return { spaces: [] };
+  } else if (endpoint.includes('/documents')) {
+    return { documents: [] };
+  } else if (endpoint.includes('/chat/models')) {
+    return { models: [] };
+  } else if (endpoint.includes('/chat/conversations')) {
+    return { conversations: [] };
+  }
+  return {};
 };
 
 // 文件上传请求函数
@@ -80,17 +122,25 @@ export const authAPI = {
 
   // 用户登录
   login: async (credentials) => {
-    const response = await apiRequest('/auth/login/json', {
+    // credentials: { username, password }
+    const formBody = new URLSearchParams();
+    formBody.append('username', credentials.username);
+    formBody.append('password', credentials.password);
+
+    const response = await apiRequest('/auth/login', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formBody.toString(),
     });
-    
+
     // 保存token到localStorage
     if (response.access_token) {
       localStorage.setItem('access_token', response.access_token);
       localStorage.setItem('refresh_token', response.refresh_token);
     }
-    
+
     return response;
   },
 
@@ -350,16 +400,27 @@ export const chatAPI = {
   
   // 创建新对话
   createConversation: async (conversationData) => {
+    // 过滤掉 null 值
+    const cleanData = {};
+    for (const [key, value] of Object.entries(conversationData)) {
+      if (value !== null && value !== undefined) {
+        cleanData[key] = value;
+      }
+    }
+    
     return apiRequest('/chat/conversations', {
       method: 'POST',
-      body: JSON.stringify(conversationData),
+      body: JSON.stringify(cleanData),
     });
   },
 
   // 获取对话列表
   getConversations: async (params = {}) => {
     const queryParams = new URLSearchParams();
-    if (params.space_id !== undefined) queryParams.append('space_id', params.space_id);
+    // 只有当 space_id 不是 null 和 undefined 时才添加参数
+    if (params.space_id !== undefined && params.space_id !== null) {
+      queryParams.append('space_id', params.space_id);
+    }
     if (params.mode) queryParams.append('mode', params.mode);
     if (params.skip !== undefined) queryParams.append('skip', params.skip);
     if (params.limit !== undefined) queryParams.append('limit', params.limit);
@@ -377,14 +438,6 @@ export const chatAPI = {
     const queryString = queryParams.toString();
     const endpoint = `/chat/conversations/${conversationId}?${queryString}`;
     return apiRequest(endpoint);
-  },
-
-  // 创建对话
-  createConversation: async (conversationData) => {
-    return apiRequest('/chat/conversations', {
-      method: 'POST',
-      body: JSON.stringify(conversationData),
-    });
   },
 
   // 更新对话
@@ -494,6 +547,196 @@ export const chatAPI = {
         method: 'DELETE' 
       });
     },
+  },
+
+  // 正确的流式聊天完成实现
+  createStreamingChatCompletion: async (requestData) => {
+    console.log('=== Starting streaming chat completion ===');
+    console.log('Request data:', requestData);
+    
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    
+    const url = `${API_BASE_URL}/chat/completions`;
+    console.log('Request URL:', url);
+    
+    const requestBody = {
+      ...requestData,
+      stream: true, // 确保启用流式输出
+    };
+    console.log('Request body:', requestBody);
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream', // 明确接受SSE
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', [...response.headers.entries()]);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      // 检查响应类型
+      const contentType = response.headers.get('content-type');
+      console.log('Content-Type:', contentType);
+      
+      if (!contentType?.includes('text/event-stream') && !contentType?.includes('text/plain')) {
+        console.warn('Unexpected content type for streaming response:', contentType);
+      }
+
+      console.log('Stream response ready, returning reader');
+      return response;
+    } catch (error) {
+      console.error('Failed to create streaming request:', error);
+      throw error;
+    }
+  },
+
+  // 测试流式接口连接
+  testStreamingConnection: async () => {
+    console.log('Testing streaming connection...');
+    
+    try {
+      const response = await chatAPI.createStreamingChatCompletion({
+        model: 'openrouter/auto',
+        messages: [
+          { role: 'user', content: 'Hello, this is a test message. Please respond with a simple greeting.' }
+        ],
+        temperature: 0.7,
+        max_tokens: 50,
+      });
+
+      console.log('Test response received:', response);
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            
+            if (data === '[DONE]') {
+              console.log('Test completed successfully with content:', fullContent);
+              return { success: true, content: fullContent };
+            }
+            
+            if (data === '' || data === 'null') continue;
+            
+            try {
+              const chunk = JSON.parse(data);
+              const content = chunk.choices?.[0]?.delta?.content;
+              if (content) {
+                fullContent += content;
+              }
+            } catch (e) {
+              console.warn('Parse error in test:', e);
+            }
+          }
+        }
+      }
+      
+      return { success: true, content: fullContent };
+      
+    } catch (error) {
+      console.error('Streaming test failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // 重新实现模拟流式响应
+  createMockStreamingResponse: async (text = "这是一个模拟的流式响应测试。我会一个字一个字地出现，让你看到流式输出的效果。") => {
+    console.log('Creating mock streaming response with text:', text);
+    
+    return new Promise((resolve) => {
+      const encoder = new TextEncoder();
+      let index = 0;
+      
+      const stream = new ReadableStream({
+        start(controller) {
+          console.log('Starting mock stream');
+          
+          const sendNextChunk = () => {
+            if (index < text.length) {
+              const char = text[index];
+              const chunk = {
+                id: "chatcmpl-mock",
+                object: "chat.completion.chunk", 
+                created: Math.floor(Date.now() / 1000),
+                model: "mock-model",
+                choices: [{
+                  index: 0,
+                  delta: { content: char },
+                  finish_reason: null
+                }]
+              };
+              
+              const chunkData = `data: ${JSON.stringify(chunk)}\n\n`;
+              console.log('Sending chunk:', char, 'Index:', index);
+              controller.enqueue(encoder.encode(chunkData));
+              
+              index++;
+              // 使用更短的延迟让效果更明显
+              setTimeout(sendNextChunk, 50); // 50ms延迟
+            } else {
+              console.log('Mock stream finished, sending final chunks');
+              
+              // 发送结束chunk
+              const finalChunk = {
+                id: "chatcmpl-mock",
+                object: "chat.completion.chunk",
+                created: Math.floor(Date.now() / 1000), 
+                model: "mock-model",
+                choices: [{
+                  index: 0,
+                  delta: {},
+                  finish_reason: "stop"
+                }]
+              };
+              
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(finalChunk)}\n\n`));
+              controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+              controller.close();
+            }
+          };
+          
+          // 开始发送
+          sendNextChunk();
+        }
+      });
+      
+      const response = new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        }
+      });
+      
+      resolve(response);
+    });
   },
 };
 

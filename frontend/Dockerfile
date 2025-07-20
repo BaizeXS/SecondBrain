@@ -24,19 +24,29 @@ FROM nginx:alpine
 # 复制构建结果（React 构建输出在 build 目录）
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# 创建 nginx 配置以支持 SPA 路由
+# 创建 nginx 配置以支持 SPA 路由和 API 代理
 RUN echo 'server { \
     listen 80; \
     server_name localhost; \
     root /usr/share/nginx/html; \
     index index.html; \
+    \
+    # SPA 路由支持 \
     location / { \
         try_files $uri $uri/ /index.html; \
     } \
-    location /api { \
-        proxy_pass http://backend:8000; \
+    \
+    # API 代理配置 \
+    location /api/ { \
+        proxy_pass http://backend:8000/api/; \
+        proxy_http_version 1.1; \
+        proxy_set_header Upgrade $http_upgrade; \
+        proxy_set_header Connection "upgrade"; \
         proxy_set_header Host $host; \
         proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+        proxy_cache_bypass $http_upgrade; \
     } \
 }' > /etc/nginx/conf.d/default.conf
 

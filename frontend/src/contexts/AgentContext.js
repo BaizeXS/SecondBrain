@@ -91,30 +91,42 @@ export const AgentProvider = ({ children }) => {
   const [agents, setAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
 
-  // 加载 Agents (从后端 API)
-  useEffect(() => {
-    const loadAgents = async () => {
-      try {
-        setLoadingAgents(true);
-        
-        // 从后端获取 Agent 列表
-        const response = await apiService.agent.getAgents();
-        const backendAgents = response.agents || response.items || [];
+  const loadAgents = useCallback(async (forceReload = false) => {
+    try {
+      setLoadingAgents(true);
+      
+      // 检查是否有认证 token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.log("AgentContext: No token found, using default agents");
+        setAgents(defaultAgents);
+        return;
+      }
+      
+      // 从后端获取 Agent 列表
+      const response = await apiService.agent.getAgents();
+      const backendAgents = response.agents || response.items || [];
+      
+      // 如果后端返回空数组，使用默认 agents
+      if (backendAgents.length === 0) {
+        console.log("AgentContext: No backend agents found, using defaults");
+        setAgents(defaultAgents);
+        return;
+      }
         
         // 转换后端 Agent 格式为前端格式
         const formattedAgents = backendAgents.map(agent => ({
           id: `agent-${agent.id}`,
-          name: agent.name,
-          description: agent.description,
+          name: agent.name || 'Unknown Agent',
+          description: agent.description || 'No description available',
           icon: getIconForAgentType(agent.agent_type),
           color: getColorForAgentType(agent.agent_type),
-          systemPrompt: agent.prompt_template || `You are ${agent.name}. ${agent.description}`,
-          isSystem: !agent.user_id, // 官方 Agent 不可删除
+          systemPrompt: agent.prompt_template || `You are ${agent.name || 'an AI assistant'}. ${agent.description || ''}`,
+          isSystem: !agent.user_id,
           apiProvider: 'default',
           apiEndpoint: '',
           apiKey: '',
           modelName: 'openrouter/auto',
-          // 保存原始后端数据
           backendData: agent
         }));
         
@@ -140,22 +152,28 @@ export const AgentProvider = ({ children }) => {
         const storedAgents = localStorage.getItem('customAgents');
         let customAgents = [];
         if (storedAgents) {
-          customAgents = JSON.parse(storedAgents);
+          try {
+            customAgents = JSON.parse(storedAgents);
+          } catch (e) {
+            console.warn('Failed to parse stored custom agents:', e);
+            customAgents = [];
+          }
         }
         
         // 合并后端 Agent 和本地自定义 Agent
         setAgents([...formattedAgents, ...customAgents]);
       } catch (error) {
         console.error("AgentContext: Error loading agents from backend", error);
-        // 如果后端加载失败，使用默认的本地 Agent
         setAgents(defaultAgents);
       } finally {
         setLoadingAgents(false);
       }
-    };
-    
+    }, []);
+
+  // 初始加载 Agents - 添加这个 useEffect
+  useEffect(() => {
     loadAgents();
-  }, []);
+  }, [loadAgents]);
 
   // 保存用户自定义的 Agents 到 localStorage
   useEffect(() => {
@@ -202,8 +220,19 @@ export const AgentProvider = ({ children }) => {
     return agents.find(a => a.id === agentId);
   }, [agents]);
 
+  // 提供重新加载函数给外部使用
+  const reloadAgents = useCallback(() => {
+    loadAgents(true);
+  }, [loadAgents]);
 
-  const value = { agents, loadingAgents, addOrUpdateAgent, deleteAgent, getAgentById };
+  const value = { 
+    agents, 
+    loadingAgents, 
+    addOrUpdateAgent, 
+    deleteAgent, 
+    getAgentById,
+    reloadAgents  // 新增：暴露重新加载函数
+  };
 
   return (
     <AgentContext.Provider value={value}>

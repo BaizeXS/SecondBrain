@@ -449,13 +449,13 @@ const ProjectPage = () => {
     }
     
     try {
-      // 如果还没有创建对话，先创建一个
+      // 1. 确保有对话 ID
       let currentConversationId = conversationId;
       if (!currentConversationId) {
         const conversationData = {
           title: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : ''),
           mode: 'chat',
-          space_id: parseInt(projectData.spaceId || projectData.id) // 关联到当前 Space
+          space_id: parseInt(projectData.spaceId || projectData.id)
         };
         
         const newConversation = await apiService.chat.createConversation(conversationData);
@@ -463,14 +463,13 @@ const ProjectPage = () => {
         setConversationId(currentConversationId);
       }
       
-      // 准备文档 ID 列表
+      // 2. 处理文档上传
       const documentIds = [];
       if (attachedFiles.length > 0) {
         for (const file of attachedFiles) {
           if (file.id && !isNaN(parseInt(file.id))) {
             documentIds.push(parseInt(file.id));
           } else if (file.rawFile) {
-            // 如果是新文件，先上传
             const uploadedDoc = await uploadFileToBackend(file.rawFile, parseInt(projectData.spaceId || projectData.id));
             if (uploadedDoc && uploadedDoc.id) {
               documentIds.push(uploadedDoc.id);
@@ -479,7 +478,7 @@ const ProjectPage = () => {
         }
       }
       
-      // 获取聊天历史（从当前会话）
+      // 3. 获取聊天历史
       let chatHistory = [];
       if (currentActiveSessionId && projectData.sessions) {
         const activeSession = projectData.sessions.find(s => s.sessionId === currentActiveSessionId);
@@ -488,7 +487,7 @@ const ProjectPage = () => {
         }
       }
       
-      // 构建消息
+      // 4. 构建消息
       const messages = [
         { role: 'system', content: activeAgentObject.systemPrompt || '你是一个有帮助的助手。' },
         ...chatHistory.map(msg => ({
@@ -498,235 +497,168 @@ const ProjectPage = () => {
         { role: 'user', content: messageText }
       ];
       
-      // 调用聊天 API
-      const response = await apiService.chat.createChatCompletion({
-        model: selectedModel,
-        messages: messages,
-        temperature: 0.7,
-        stream: false,
-        conversation_id: currentConversationId,
-        document_ids: documentIds.length > 0 ? documentIds : undefined
-      });
-      
-      const aiReplyText = response.choices[0].message.content;
-
-      // 更新本地状态以显示消息
+      // 5. 创建用户消息
       const newUserMessage = {
         sender: 'user', 
         text: messageText,
         files: attachedFiles.map(f => ({ 
-          id: f.id, 
-          name: f.name, 
-          size: f.size, 
-          type: f.type, 
-          uploadedAt: f.uploadedAt, 
-          preview: f.preview,
-          isAiGenerated: f.isAiGenerated,
-          aiAgent: f.aiAgent
+          id: f.id, name: f.name, size: f.size, type: f.type, 
+          uploadedAt: f.uploadedAt, preview: f.preview,
+          isAiGenerated: f.isAiGenerated, aiAgent: f.aiAgent
         })),
         notes: attachedNotes.map(n => ({ 
-          id: n.id, 
-          name: n.name, 
-          content: n.content, 
-          createdAt: n.createdAt, 
-          preview: n.preview,
-          isAiGenerated: n.isAiGenerated,
-          aiAgent: n.aiAgent
+          id: n.id, name: n.name, content: n.content, createdAt: n.createdAt, 
+          preview: n.preview, isAiGenerated: n.isAiGenerated, aiAgent: n.aiAgent
         })),
         timestamp: new Date().toISOString(),
       };
       
-      const aiResponse = {
-        id: `msg-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      // 6. 创建流式 AI 响应占位符
+      const aiMessageId = `msg-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const streamingAiResponse = {
+        id: aiMessageId,
         sender: 'ai', 
-        text: aiReplyText, 
+        text: '', 
         timestamp: new Date().toISOString(), 
-        files: []
+        files: [],
+        streaming: true,
       };
 
-      // 更新本地会话状态
+      // 7. 更新会话状态
       let targetSessionId = currentActiveSessionId;
       let updatedSessions = projectData.sessions ? [...projectData.sessions] : [];
-      let sessionModifiedOrCreated = false;
-      let newSessionWasCreated = false;
+      
+      if (!targetSessionId) {
+        // 创建新会话
+        targetSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+        const newSession = {
+          sessionId: targetSessionId,
+          startTime: new Date().toISOString(),
+          endTime: new Date().toISOString(),
+          messages: [newUserMessage, streamingAiResponse],
+          sessionFiles: attachedFiles.map(f => ({ 
+            id: f.id, name: f.name, type: f.type, size: f.size, 
+            uploadedAt: f.uploadedAt, isAiGenerated: f.isAiGenerated, aiAgent: f.aiAgent
+          })),
+          sessionNotes: attachedNotes.map(n => ({ 
+            id: n.id, name: n.name, content: n.content, createdAt: n.createdAt,
+            isAiGenerated: n.isAiGenerated, aiAgent: n.aiAgent
+          }))
+        };
+        updatedSessions = [newSession, ...updatedSessions];
+      } else {
+        // 更新现有会话
+        const sessionIndex = updatedSessions.findIndex(s => s.sessionId === targetSessionId);
+        if (sessionIndex !== -1) {
+          const sessionToUpdate = { ...updatedSessions[sessionIndex] };
+          sessionToUpdate.messages = [...(sessionToUpdate.messages || []), newUserMessage, streamingAiResponse];
+          sessionToUpdate.endTime = new Date().toISOString();
+          
+          const newSessionFiles = attachedFiles.map(f => ({ 
+            id: f.id, name: f.name, type: f.type, size: f.size, 
+            uploadedAt: f.uploadedAt, isAiGenerated: f.isAiGenerated, aiAgent: f.aiAgent
+          }));
+          sessionToUpdate.sessionFiles = Array.from(new Map([...(sessionToUpdate.sessionFiles || []), ...newSessionFiles].map(f => [f.id, f])).values());
+          
+          const newSessionNotes = attachedNotes.map(n => ({ 
+            id: n.id, name: n.name, content: n.content, createdAt: n.createdAt,
+            isAiGenerated: n.isAiGenerated, aiAgent: n.aiAgent
+          }));
+          sessionToUpdate.sessionNotes = Array.from(new Map([...(sessionToUpdate.sessionNotes || []), ...newSessionNotes].map(n => [n.id, n])).values());
+          
+          updatedSessions[sessionIndex] = sessionToUpdate;
+        }
+      }
 
-    if (targetSessionId) {
-      const sessionIndex = updatedSessions.findIndex(s => s.sessionId === targetSessionId);
-      if (sessionIndex !== -1) {
-        const sessionToUpdate = { ...updatedSessions[sessionIndex] };
-        sessionToUpdate.messages = [...(sessionToUpdate.messages || []), newUserMessage];
-        sessionToUpdate.endTime = new Date().toISOString();
-        const newSessionFiles = attachedFiles.map(f => ({ 
-          id: f.id, 
-          name: f.name, 
-          type: f.type, 
-          size: f.size, 
-          uploadedAt: f.uploadedAt,
-          isAiGenerated: f.isAiGenerated,
-          aiAgent: f.aiAgent
-        }));
-        sessionToUpdate.sessionFiles = Array.from(new Map([...(sessionToUpdate.sessionFiles || []), ...newSessionFiles].map(f => [f.id, f])).values());
-        // 新增：处理会话中的笔记
-        const newSessionNotes = attachedNotes.map(n => ({ 
-          id: n.id, 
-          name: n.name, 
-          content: n.content, 
-          createdAt: n.createdAt,
-          isAiGenerated: n.isAiGenerated,
-          aiAgent: n.aiAgent
-        }));
-        sessionToUpdate.sessionNotes = Array.from(new Map([...(sessionToUpdate.sessionNotes || []), ...newSessionNotes].map(n => [n.id, n])).values());
-        updatedSessions[sessionIndex] = sessionToUpdate;
-        sessionModifiedOrCreated = true;
-      } else { targetSessionId = null; }
-    }
-
-    if (!targetSessionId) {
-      targetSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const newSession = {
-        sessionId: targetSessionId, startTime: new Date().toISOString(), messages: [newUserMessage],
-        aiSummary: `Chat started ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, // Better placeholder
-        sessionFiles: attachedFiles.map(f => ({ 
-          id: f.id, 
-          name: f.name, 
-          type: f.type, 
-          size: f.size, 
-          uploadedAt: f.uploadedAt,
-          isAiGenerated: f.isAiGenerated,
-          aiAgent: f.aiAgent
-        })),
-        sessionNotes: attachedNotes.map(n => ({ 
-          id: n.id, 
-          name: n.name, 
-          content: n.content, 
-          createdAt: n.createdAt,
-          isAiGenerated: n.isAiGenerated,
-          aiAgent: n.aiAgent
-        })),
-        endTime: new Date().toISOString(),
+      // 8. 立即更新项目状态以显示用户消息和AI占位符
+      const updatedProjectData = {
+        ...projectData,
+        sessions: updatedSessions,
       };
-      updatedSessions.push(newSession);
-      setActiveSessionId(targetSessionId);
-      sessionModifiedOrCreated = true;
-      newSessionWasCreated = true;
-    }
+      updateProject(projectData.id, updatedProjectData);
+      
+      // 9. 开始流式聊天
+      const streamResponse = await apiService.chat.createStreamingChatCompletion({
+        model: selectedModel,
+        messages: messages,
+        temperature: 0.7,
+        stream: true,
+        conversation_id: currentConversationId,
+        document_ids: documentIds.length > 0 ? documentIds : undefined
+      });
 
-    if (sessionModifiedOrCreated) {
-      // --- 调用 AI 的逻辑 ---
-      const getAiReply = async () => {
-        if (activeAgentObject.apiProvider === 'custom') {
-          // --- 调用自定义 API ---
-          try {
-            const response = await fetch(activeAgentObject.apiEndpoint, { /* ... (fetch options) ... */ });
-            if (!response.ok) throw new Error(`API Error: ${response.status}`);
-            const data = await response.json();
-            return data.choices[0].message.content; // Adjust based on API response structure
-          } catch (error) {
-            console.error("Custom API call failed:", error);
-            return `Error calling custom API: ${error.message}`;
+      // 10. 处理流式响应
+      const reader = streamResponse.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            
+            if (data === '[DONE]') {
+              // 流式完成，更新最终状态
+              const finalSessionIndex = updatedSessions.findIndex(s => s.sessionId === targetSessionId);
+              if (finalSessionIndex !== -1) {
+                updatedSessions[finalSessionIndex].messages = updatedSessions[finalSessionIndex].messages.map(msg => 
+                  msg.id === aiMessageId 
+                    ? { ...msg, text: fullContent, streaming: false }
+                    : msg
+                );
+                updatedSessions[finalSessionIndex].endTime = new Date().toISOString();
+              }
+              break;
+            }
+            
+            try {
+              const chunk = JSON.parse(data);
+              const content = chunk.choices?.[0]?.delta?.content;
+              
+              if (content) {
+                fullContent += content;
+                
+                // 实时更新AI消息
+                const sessionIndex = updatedSessions.findIndex(s => s.sessionId === targetSessionId);
+                if (sessionIndex !== -1) {
+                  updatedSessions[sessionIndex].messages = updatedSessions[sessionIndex].messages.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { ...msg, text: fullContent, streaming: true }
+                      : msg
+                  );
+                  
+                  // 实时更新项目状态
+                  updateProject(projectData.id, {
+                    ...projectData,
+                    sessions: updatedSessions,
+                  });
+                }
+              }
+            } catch (e) {
+              console.warn('Failed to parse chunk:', data);
+            }
           }
-        } else {
-          // --- 调用默认模型服务 (模拟) ---
-          return new Promise(resolve => {
-            setTimeout(() => {
-              resolve(`AI mock response to "${messageText.substring(0, 20)}..." (using ${activeAgentObject.name} agent for project: ${projectData.name})`);
-            }, 800);
-          });
-        }
-      };
-
-      // 等待 AI 回复
-      const aiText = await getAiReply();
-
-      const aiResponse = {
-        id: `msg-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        sender: 'ai', text: aiText, timestamp: new Date().toISOString(), files: []
-      };
-
-      const finalSessionIndex = updatedSessions.findIndex(s => s.sessionId === targetSessionId);
-      if (finalSessionIndex !== -1) {
-        updatedSessions[finalSessionIndex].messages.push(aiResponse);
-        updatedSessions[finalSessionIndex].endTime = new Date().toISOString();
-      }
-      
-      // 新增：模拟AI生成文件或笔记
-      const shouldGenerateFile = Math.random() > 0.5; // 50%概率生成文件
-      const shouldGenerateNote = Math.random() > 0.7; // 30%概率生成笔记
-      
-      let updatedProjectFiles = [...(projectData.files || [])];
-      let updatedProjectNotes = [...(projectData.notes || [])];
-      let filesWereAddedToProject = false; // 标志位，判断是否需要更新项目
-      let notesWereAddedToProject = false; // 标志位，判断是否需要更新项目
-
-      if (attachedFiles && attachedFiles.length > 0) {
-        const newFilesToAddToProject = attachedFiles.filter(
-          newFile => !updatedProjectFiles.some(
-            existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size
-          )
-        );
-
-        if (newFilesToAddToProject.length > 0) {
-          console.log("ProjectPage: Adding new unique files to project's main file list:", newFilesToAddToProject.map(f => f.name));
-          const newSimplifiedFiles = newFilesToAddToProject.map(simplifyFileForContext); // 使用简化版
-          updatedProjectFiles = [...updatedProjectFiles, ...newSimplifiedFiles];
-          filesWereAddedToProject = true;
-        } else {
-          console.log("ProjectPage: All attached files already exist in the project. No update to project's file list needed.");
         }
       }
 
-      // 新增：处理AI生成的文件
-      if (shouldGenerateFile) {
-        const aiGeneratedFile = {
-          id: `ai-file-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          name: `AI Generated File ${new Date().toLocaleTimeString()}`,
-          size: Math.floor(Math.random() * 1000000) + 1000, // 1KB to 1MB
-          type: 'application/pdf',
-          uploadedAt: new Date().toISOString(),
-          preview: 'AI generated content',
-          isAiGenerated: true, // 标记为AI生成
-          aiAgent: activeAgentObject.name
-        };
-        
-        const simplifiedAiFile = simplifyFileForContext(aiGeneratedFile);
-        updatedProjectFiles = [...updatedProjectFiles, simplifiedAiFile];
-        filesWereAddedToProject = true;
-        
-        console.log("AI generated file for project:", aiGeneratedFile.name);
-      }
-      
-      // 新增：处理AI生成的笔记
-      if (shouldGenerateNote) {
-        const aiGeneratedNote = {
-          id: `ai-note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          name: `AI Generated Note ${new Date().toLocaleTimeString()}`,
-          content: `AI generated note based on: "${messageText.substring(0, 50)}..."`,
-          preview: `AI generated note based on: "${messageText.substring(0, 30)}..."`,
-          createdAt: new Date().toISOString(),
-          isAiGenerated: true, // 标记为AI生成
-          aiAgent: activeAgentObject.name
-        };
-        
-        const simplifiedAiNote = simplifyNoteForContext(aiGeneratedNote);
-        updatedProjectNotes = [...updatedProjectNotes, simplifiedAiNote];
-        notesWereAddedToProject = true;
-        
-        console.log("AI generated note for project:", aiGeneratedNote.name);
-      }
+      // 11. 最终更新项目状态
+      const finalUpdatedProjectData = {
+        ...projectData,
+        sessions: updatedSessions,
+      };
+      updateProject(projectData.id, finalUpdatedProjectData);
 
-      // 只有在会话被修改或有新文件/笔记添加到项目时才更新
-      if (sessionModifiedOrCreated || filesWereAddedToProject || notesWereAddedToProject) {
-        const updatedProjectData = {
-          ...projectData,
-          sessions: updatedSessions,
-          files: updatedProjectFiles,
-          notes: updatedProjectNotes,
-        };
-        updateProject(projectData.id, updatedProjectData);
-      }
-    }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error sending streaming message to project:', error);
       alert(`发送消息失败: ${error.message}`);
     }
   };

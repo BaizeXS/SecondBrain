@@ -73,6 +73,9 @@ const HomePage = () => {
   const [isDeepSearchMode, setIsDeepSearchMode] = useState(false);
   const [availableModels, setAvailableModels] = useState([]);
 
+  // 添加模拟流式响应测试
+  const [useMockStreaming, setUseMockStreaming] = useState(false);
+
   useEffect(() => {
     if (chatMessagesAreaRef.current) {
       chatMessagesAreaRef.current.scrollTop = chatMessagesAreaRef.current.scrollHeight;
@@ -83,20 +86,30 @@ const HomePage = () => {
   useEffect(() => {
     const fetchModels = async () => {
       try {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          console.log('No token available, using default models');
+          setAvailableModels([
+            { id: 'openrouter/auto', name: 'Auto (自动选择最佳模型)' }
+          ]);
+          return;
+        }
+  
         const response = await apiService.chat.getAvailableModels();
-        const chatModels = response.models.filter(model => model.type === 'chat');
-        setAvailableModels(chatModels.map(model => ({
-          id: model.id,
-          name: model.name
-        })));
+        const chatModels = response.models ? response.models.filter(model => model.type === 'chat') : [];
         
-        // 如果当前选择的模型不在列表中，使用默认模型
-        if (chatModels.length > 0 && !chatModels.find(m => m.id === selectedModel)) {
-          setSelectedModel(response.default_chat_model || chatModels[0].id);
+        if (chatModels.length > 0) {
+          setAvailableModels(chatModels.map(model => ({
+            id: model.id,
+            name: model.name
+          })));
+        } else {
+          setAvailableModels([
+            { id: 'openrouter/auto', name: 'Auto (自动选择最佳模型)' }
+          ]);
         }
       } catch (error) {
         console.error('Failed to fetch models:', error);
-        // 如果获取失败，使用默认的模型列表
         setAvailableModels([
           { id: 'openrouter/auto', name: 'Auto (自动选择最佳模型)' }
         ]);
@@ -110,9 +123,8 @@ const HomePage = () => {
   useEffect(() => {
     const loadRecentConversation = async () => {
       try {
-        // 获取最近的对话列表
+        // 获取最近的对话列表 - 不传 space_id 参数，而不是传 null
         const conversations = await apiService.chat.getConversations({
-          space_id: null,  // 只获取不属于任何 Space 的对话
           limit: 1
         });
         
@@ -320,7 +332,7 @@ const HomePage = () => {
   };
 
   const handleSendMessage = async (messageText, filesFromInput, notesFromInput = []) => {
-    // 如果是深度研究模式，调用深度研究 API
+    // 深度研究模式处理保持不变
     if (isDeepSearchMode) {
       try {
         const newUserMessage = {
@@ -330,7 +342,6 @@ const HomePage = () => {
         };
         setChatHistory(prev => [...prev, newUserMessage]);
         
-        // 显示正在进行深度研究的提示
         const researchingMessage = {
           sender: 'ai',
           text: '正在进行深度研究，这可能需要一些时间...',
@@ -338,14 +349,12 @@ const HomePage = () => {
         };
         setChatHistory(prev => [...prev, researchingMessage]);
         
-        // 调用深度研究 API
         const response = await apiService.agent.createDeepResearch({
           query: messageText,
-          mode: 'general', // 或 'academic'
+          mode: 'general',
           stream: false
         });
         
-        // 更新最后的 AI 消息为研究结果
         setChatHistory(prev => {
           const newHistory = [...prev];
           newHistory[newHistory.length - 1] = {
@@ -361,7 +370,6 @@ const HomePage = () => {
           return newHistory;
         });
         
-        // 如果研究创建了新的 Space，提示用户
         if (response.space_id) {
           setTimeout(() => {
             if (window.confirm('深度研究已完成并创建了新的知识空间。是否前往查看？')) {
@@ -386,213 +394,203 @@ const HomePage = () => {
       }
     }
     
-    // 常规聊天逻辑
+    // === 常规聊天的流式处理 ===
     const activeAgentObject = agents.find(a => a.id === activeAgentId);
     if (!activeAgentObject) {
       alert("Error: Active agent not found!");
       return;
     }
-    const activeAgentName = activeAgentObject ? activeAgentObject.name : 'general';
-    const filesAttachedToMessage = [...filesFromInput]; // These have rawFile
-    const notesAttachedToMessage = [...notesFromInput]; // 新增：处理笔记
 
-    const getAiReply = async () => {
-      if (activeAgentObject.apiProvider === 'custom') {
-        // --- 调用自定义 API ---
+    const filesAttachedToMessage = [...filesFromInput];
+    const notesAttachedToMessage = [...notesFromInput];
+
+    // 1. 添加用户消息
+    const newUserMessage = {
+      sender: 'user', 
+      text: messageText,
+      files: filesAttachedToMessage.map(f => ({ 
+        id: f.id, name: f.name, size: f.size, type: f.type, 
+        uploadedAt: f.uploadedAt, preview: f.preview,
+        isAiGenerated: f.isAiGenerated, aiAgent: f.aiAgent
+      })),
+      notes: notesAttachedToMessage.map(n => ({ 
+        id: n.id, name: n.name, content: n.content, createdAt: n.createdAt, 
+        preview: n.preview, isAiGenerated: n.isAiGenerated, aiAgent: n.aiAgent
+      })),
+      timestamp: new Date().toISOString()
+    };
+    
+    setChatHistory(prev => [...prev, newUserMessage]);
+
+    // 2. 创建AI消息占位符
+    const aiMessageId = `msg-ai-${Date.now()}`;
+    const streamingAiMessage = {
+      id: aiMessageId,
+      sender: 'ai',
+      text: '',
+      timestamp: new Date().toISOString(),
+      files: [],
+      streaming: true,
+    };
+    
+    setChatHistory(prev => [...prev, streamingAiMessage]);
+
+    try {
+      if (useMockStreaming) {
+        // === 使用模拟流式响应 ===
+        console.log("Starting mock streaming test");
+        
+        const mockText = `你好！我收到了你的消息："${messageText}"。这是一个模拟的流式回复，每个字符会逐个显示，展示流式输出的效果。现在你应该能看到文字一个一个地出现。`;
+        
+        await streamingResponseHandler(
+          await apiService.chat.createMockStreamingResponse(mockText),
+          aiMessageId
+        );
+        
+      } else if (activeAgentObject.apiProvider === 'custom') {
+        // === 自定义API处理（非流式） ===
         console.log("Using custom API:", activeAgentObject.apiEndpoint);
         try {
           const response = await fetch(activeAgentObject.apiEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${activeAgentObject.apiKey}` // 常见的认证方式
+              'Authorization': `Bearer ${activeAgentObject.apiKey}`
             },
             body: JSON.stringify({
               model: activeAgentObject.modelName,
-              // 构建符合目标 API 的消息格式
               messages: [
                 { role: 'system', content: activeAgentObject.systemPrompt },
-                // ... (将 chatHistory 转换为 API 需要的格式) ...
+                ...chatHistory.filter(msg => !msg.streaming).map(msg => ({
+                  role: msg.sender === 'user' ? 'user' : 'assistant',
+                  content: msg.text
+                })),
                 { role: 'user', content: messageText },
               ],
-              // ... (其他参数如 temperature)
             })
           });
+          
           if (!response.ok) {
             throw new Error(`API Error: ${response.status} ${response.statusText}`);
           }
+          
           const data = await response.json();
-          // 从 data 中解析出 AI 的回复文本
-          // 例如, 对于 OpenAI API: data.choices[0].message.content
-          return data.choices[0].message.content;
+          const aiText = data.choices[0].message.content;
+          
+          // 模拟打字机效果
+          await simulateTypingEffect(aiText, aiMessageId);
+          
         } catch (error) {
           console.error("Custom API call failed:", error);
-          return `Error calling custom API: ${error.message}`;
+          setChatHistory(prev => prev.map(msg => 
+            msg.id === aiMessageId 
+              ? { ...msg, text: `Error calling custom API: ${error.message}`, streaming: false, error: true }
+              : msg
+          ));
         }
+        
       } else {
-        // --- 调用后端 API 服务 ---
-        console.log("Using backend API for agent:", activeAgentObject.name);
-        try {
-          // 如果还没有创建对话，先创建一个
-          let currentConversationId = conversationId;
-          if (!currentConversationId) {
-            const conversationData = {
-              title: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : ''),
-              mode: isDeepSearchMode ? 'search' : 'chat',
-              space_id: null // 不关联到任何 Space
-            };
-            
-            const newConversation = await apiService.chat.createConversation(conversationData);
-            currentConversationId = newConversation.id;
-            setConversationId(currentConversationId);
-          }
+        // === 后端API流式处理 ===
+        console.log("Using backend streaming API");
+        
+        let currentConversationId = conversationId;
+        if (!currentConversationId) {
+          const conversationData = {
+            title: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : ''),
+            mode: 'chat'
+          };
           
-          // 构建聊天历史
-          const messages = [
-            { role: 'system', content: activeAgentObject.systemPrompt || '你是一个有帮助的助手。' },
-            ...chatHistory.map(msg => ({
-              role: msg.sender === 'user' ? 'user' : 'assistant',
-              content: msg.text
-            })),
-            { role: 'user', content: messageText }
-          ];
-          
-          // 准备文档 ID 列表（如果有文件附件）
-          const documentIds = [];
-          if (filesAttachedToMessage.length > 0) {
-            for (const file of filesAttachedToMessage) {
-              // 如果文件已经上传到后端（有数字 ID）
-              if (file.id && !isNaN(parseInt(file.id))) {
-                documentIds.push(parseInt(file.id));
-              } else if (file.rawFile) {
-                // 如果是新文件，先上传
-                try {
-                  const uploadedDoc = await uploadFileToBackend(file.rawFile, currentConversationId);
-                  if (uploadedDoc && uploadedDoc.id) {
-                    documentIds.push(uploadedDoc.id);
-                    // 更新文件信息
-                    file.id = uploadedDoc.id.toString();
-                    file.url = `/documents/${uploadedDoc.id}`;
-                  }
-                } catch (uploadError) {
-                  console.error('Failed to upload file:', uploadError);
+          const newConversation = await apiService.chat.createConversation(conversationData);
+          currentConversationId = newConversation.id;
+          setConversationId(currentConversationId);
+        }
+        
+        // 处理文件上传
+        const documentIds = [];
+        if (filesAttachedToMessage.length > 0) {
+          for (const file of filesAttachedToMessage) {
+            if (file.id && !isNaN(parseInt(file.id))) {
+              documentIds.push(parseInt(file.id));
+            } else if (file.rawFile) {
+              try {
+                const uploadedDoc = await uploadFileToBackend(file.rawFile, currentConversationId);
+                if (uploadedDoc && uploadedDoc.id) {
+                  documentIds.push(uploadedDoc.id);
+                  file.id = uploadedDoc.id.toString();
+                  file.url = `/documents/${uploadedDoc.id}`;
                 }
+              } catch (uploadError) {
+                console.error('Failed to upload file:', uploadError);
               }
             }
           }
-          
-          // 使用对话 ID 和文档 ID 调用聊天 API
-          const response = await apiService.chat.createChatCompletion({
-            model: selectedModel,
-            messages: messages,
-            temperature: 0.7,
-            stream: false,
-            conversation_id: currentConversationId, // 添加对话ID
-            document_ids: documentIds.length > 0 ? documentIds : undefined // 添加文档ID
+        }
+        
+        // 构建聊天历史
+        const messages = [
+          { role: 'system', content: activeAgentObject.systemPrompt || '你是一个有帮助的助手。' },
+          ...chatHistory.filter(msg => !msg.streaming).map(msg => ({
+            role: msg.sender === 'user' ? 'user' : 'assistant',
+            content: msg.text
+          })),
+          { role: 'user', content: messageText }
+        ];
+        
+        // 启动流式聊天
+        const streamRequestData = {
+          model: selectedModel,
+          messages: messages,
+          temperature: 0.7,
+          conversation_id: currentConversationId,
+          ...(documentIds.length > 0 && { document_ids: documentIds })
+        };
+        
+        const streamResponse = await apiService.chat.createStreamingChatCompletion(streamRequestData);
+        await streamingResponseHandler(streamResponse, aiMessageId);
+      }
+
+      // 处理文件/笔记上下文（保持原有逻辑）
+      if (filesFromInput.length > 0) {
+        const newFilesToAddToContext = filesFromInput.filter(
+          newFile => !currentChatFiles.some(
+            existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size
+          )
+        );
+
+        if (newFilesToAddToContext.length > 0) {
+          setCurrentChatFiles(prev => {
+            const combined = [...prev, ...newFilesToAddToContext];
+            return Array.from(new Map(combined.map(f => [f.id, f])).values());
           });
-          
-          return response.choices[0].message.content;
-        } catch (error) {
-          console.error("Backend API call failed:", error);
-          return `错误: ${error.message}`;
         }
       }
-    };
 
-    const newUserMessage = {
-      sender: 'user', text: messageText,
-      files: filesAttachedToMessage.map(f => ({ 
-        id: f.id, 
-        name: f.name, 
-        size: f.size, 
-        type: f.type, 
-        uploadedAt: f.uploadedAt, 
-        preview: f.preview,
-        isAiGenerated: f.isAiGenerated,
-        aiAgent: f.aiAgent
-      })),
-      notes: notesAttachedToMessage.map(n => ({ 
-        id: n.id, 
-        name: n.name, 
-        content: n.content, 
-        createdAt: n.createdAt, 
-        preview: n.preview,
-        isAiGenerated: n.isAiGenerated,
-        aiAgent: n.aiAgent
-      })),
-      timestamp: new Date().toISOString()
-    };
-    setChatHistory(prev => [...prev, newUserMessage]);
+      if (notesFromInput.length > 0) {
+        const newNotesToAddToContext = notesFromInput.filter(
+          newNote => !currentChatNotes.some(existingNote => existingNote.id === newNote.id)
+        );
 
-    if (filesFromInput.length > 0) {
-      // 对比 currentChatFiles，只添加真正新的文件
-      const newFilesToAddToContext = filesFromInput.filter(
-        newFile => !currentChatFiles.some(
-          existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size
-        )
-      );
-
-      // 如果有真正新的文件，才更新全局列表
-      if (newFilesToAddToContext.length > 0) {
-        console.log("HomePage: Adding new unique files to chat context:", newFilesToAddToContext.map(f => f.name));
-        setCurrentChatFiles(prev => {
-          const combined = [...prev, ...newFilesToAddToContext];
-          // 虽然我们已经过滤了，但用 Map 再次去重更保险
-          return Array.from(new Map(combined.map(f => [f.id, f])).values());
-        });
-        // 之后的 useEffect 会负责将更新后的 currentChatFiles 推送到 RightSidebar
-      } else {
-        console.log("HomePage: All attached files already exist in chat context. No update to context needed.");
+        if (newNotesToAddToContext.length > 0) {
+          setCurrentChatNotes(prev => {
+            const combined = [...prev, ...newNotesToAddToContext];
+            return Array.from(new Map(combined.map(n => [n.id, n])).values());
+          });
+        }
       }
-    }
 
-    // 新增：处理笔记
-    if (notesFromInput.length > 0) {
-      // 对比 currentChatNotes，只添加真正新的笔记
-      const newNotesToAddToContext = notesFromInput.filter(
-        newNote => !currentChatNotes.some(
-          existingNote => existingNote.id === newNote.id
-        )
-      );
-
-      // 如果有真正新的笔记，才更新全局列表
-      if (newNotesToAddToContext.length > 0) {
-        console.log("HomePage: Adding new unique notes to chat context:", newNotesToAddToContext.map(n => n.name));
-        setCurrentChatNotes(prev => {
-          const combined = [...prev, ...newNotesToAddToContext];
-          // 用 Map 去重
-          return Array.from(new Map(combined.map(n => [n.id, n])).values());
-        });
-      } else {
-        console.log("HomePage: All attached notes already exist in chat context. No update to context needed.");
-      }
-    }
-
-    // 获取并显示 AI 回复
-    getAiReply().then(aiText => {
-      const aiResponse = {
-        id: `msg-ai-${Date.now()}`,
-        sender: 'ai',
-        text: aiText,
-        timestamp: new Date().toISOString(),
-        files: []
-      };
-      setChatHistory(prev => [...prev, aiResponse]);
-      
-      // 新增：模拟AI生成文件或笔记
-      // 这里可以根据AI回复的内容来决定生成什么类型的文件或笔记
-      const shouldGenerateFile = Math.random() > 0.5; // 50%概率生成文件
-      const shouldGenerateNote = Math.random() > 0.7; // 30%概率生成笔记
+      // 9. AI 生成文件/笔记（保持原有逻辑）
+      const shouldGenerateFile = Math.random() > 0.5;
+      const shouldGenerateNote = Math.random() > 0.7;
       
       if (shouldGenerateFile) {
         const aiGeneratedFile = {
           id: `ai-file-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
           name: `AI Generated File ${new Date().toLocaleTimeString()}`,
-          size: Math.floor(Math.random() * 1000000) + 1000, // 1KB to 1MB
+          size: Math.floor(Math.random() * 1000000) + 1000,
           type: 'application/pdf',
           uploadedAt: new Date().toISOString(),
           preview: 'AI generated content',
-          isAiGenerated: true, // 标记为AI生成
+          isAiGenerated: true,
           aiAgent: activeAgentObject.name
         };
         
@@ -600,18 +598,16 @@ const HomePage = () => {
           const combined = [...prev, aiGeneratedFile];
           return Array.from(new Map(combined.map(f => [f.id, f])).values());
         });
-        
-        console.log("AI generated file:", aiGeneratedFile.name);
       }
-      
+
       if (shouldGenerateNote) {
         const aiGeneratedNote = {
           id: `ai-note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
           name: `AI Generated Note ${new Date().toLocaleTimeString()}`,
           content: `AI generated note based on: "${messageText.substring(0, 50)}..."`,
-          preview: `AI generated note based on: "${messageText.substring(0, 30)}..."`,
+          preview: `AI generated note...`,
           createdAt: new Date().toISOString(),
-          isAiGenerated: true, // 标记为AI生成
+          isAiGenerated: true,
           aiAgent: activeAgentObject.name
         };
         
@@ -619,10 +615,134 @@ const HomePage = () => {
           const combined = [...prev, aiGeneratedNote];
           return Array.from(new Map(combined.map(n => [n.id, n])).values());
         });
-        
-        console.log("AI generated note:", aiGeneratedNote.name);
       }
-    });
+
+    } catch (error) {
+      console.error('Error in streaming message:', error);
+      
+      setChatHistory(prev => prev.map(msg => 
+        msg.id === aiMessageId 
+          ? { 
+              ...msg, 
+              text: `错误: ${error.message}`, 
+              streaming: false, 
+              error: true 
+            }
+          : msg
+      ));
+    }
+  };
+
+  // 通用的流式响应处理器
+  const streamingResponseHandler = async (streamResponse, aiMessageId) => {
+    console.log('Starting streaming response handler');
+    
+    if (!streamResponse || !streamResponse.body) {
+      throw new Error('No response body for streaming');
+    }
+
+    const reader = streamResponse.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullContent = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log('Stream reading completed');
+          break;
+        }
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
+          
+          const data = trimmedLine.slice(6).trim();
+          
+          if (data === '[DONE]') {
+            console.log('Received [DONE], finalizing stream');
+            setChatHistory(prev => prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { ...msg, text: fullContent, streaming: false }
+                : msg
+            ));
+            return;
+          }
+          
+          if (data === '' || data === 'null') continue;
+          
+          try {
+            const chunk = JSON.parse(data);
+            
+            if (chunk.error) {
+              throw new Error(chunk.error.message || 'Stream error');
+            }
+            
+            const content = chunk.choices?.[0]?.delta?.content;
+            
+            if (content) {
+              fullContent += content;
+              console.log('Received content chunk:', content, 'Total length:', fullContent.length);
+              
+              // 实时更新AI消息 - 这是关键部分
+              setChatHistory(prev => {
+                const newHistory = prev.map(msg => {
+                  if (msg.id === aiMessageId) {
+                    return { 
+                      ...msg, 
+                      text: fullContent, 
+                      streaming: true 
+                    };
+                  }
+                  return msg;
+                });
+                return newHistory;
+              });
+            }
+          } catch (parseError) {
+            console.warn('Failed to parse chunk:', data, parseError);
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+      
+      // 确保最终状态正确
+      setChatHistory(prev => prev.map(msg => 
+        msg.id === aiMessageId 
+          ? { ...msg, text: fullContent, streaming: false }
+          : msg
+      ));
+    }
+  };
+
+  // 模拟打字机效果（用于非流式API）
+  const simulateTypingEffect = async (text, aiMessageId) => {
+    console.log('Starting typing simulation for text:', text);
+    
+    let currentText = '';
+    const characters = text.split('');
+    
+    for (let i = 0; i < characters.length; i++) {
+      currentText += characters[i];
+      
+      setChatHistory(prev => prev.map(msg => 
+        msg.id === aiMessageId 
+          ? { ...msg, text: currentText, streaming: i < characters.length - 1 }
+          : msg
+      ));
+      
+      // 等待50ms再显示下一个字符
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    console.log('Typing simulation completed');
   };
 
   const handleOpenSaveModal = () => {
@@ -662,21 +782,84 @@ const HomePage = () => {
   const isChatStarted = chatHistory.length > 0;
   const showInitialPromptLayout = !isChatStarted;
 
+  // 在组件内添加测试函数
+  const testStreamingConnection = async () => {
+    console.log('Testing streaming connection...');
+    
+    try {
+      const result = await apiService.chat.testStreamingConnection();
+      if (result.success) {
+        alert(`流式连接测试成功！\n收到内容: ${result.content}`);
+      } else {
+        alert(`流式连接测试失败: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`测试失败: ${error.message}`);
+    }
+  };
+
   return (
     <div className={styles.homePageLayout}>
+      {/* 开发环境调试控制面板 */}
+      {process.env.NODE_ENV === 'development' && (
+        <div style={{
+          position: 'fixed',
+          top: '10px',
+          right: '10px',
+          background: 'white',
+          padding: '12px',
+          borderRadius: '8px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          zIndex: 9999,
+          minWidth: '200px',
+        }}>
+          <div style={{ marginBottom: '8px', fontWeight: 'bold', fontSize: '14px' }}>
+            🛠️ 调试面板
+          </div>
+          <label style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            fontSize: '13px',
+            cursor: 'pointer'
+          }}>
+            <input
+              type="checkbox"
+              checked={useMockStreaming}
+              onChange={(e) => setUseMockStreaming(e.target.checked)}
+            />
+            使用模拟流式响应
+          </label>
+          <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
+            启用此选项测试前端流式显示逻辑
+          </div>
+        </div>
+      )}
+
       <div className={`${styles.chatAreaWrapper} ${showInitialPromptLayout ? styles.chatAreaWrapperInitial : styles.chatAreaActive}`}>
         {showInitialPromptLayout && (
           <div className={styles.initialPromptHeader}> <h3 className={styles.mainPromptText}>What would you like to get done, User?</h3> </div>
         )}
         <div className={`${styles.chatMessagesArea} ${showInitialPromptLayout ? styles.hiddenOnInitial : ''}`} ref={chatMessagesAreaRef}>
           {chatHistory.map((entry) => (
-            // 使用与 ProjectPage 完全相同的 JSX 结构和类名
             <div key={entry.id || entry.timestamp} className={`${styles.chatMessage} ${entry.sender === 'user' ? styles.userMessage : styles.aiMessage}`}>
-              <div className={styles.messageBubbleContent}> {/* 包装器用于气泡样式 */}
+              <div className={`${styles.messageBubbleContent} ${entry.streaming ? styles.streaming : ''}`}>
                 {((entry.files && entry.files.length > 0) || (entry.notes && entry.notes.length > 0)) && (
                   <MessageFileAttachments files={entry.files || []} notes={entry.notes || []} isAiMessage={entry.sender === 'ai'} />
                 )}
-                <p>{entry.text}</p>
+                <p>
+                  {entry.text}
+                  {/* 流式输出光标 */}
+                  {entry.streaming && (
+                    <span className={styles.streamingCursor}>|</span>
+                  )}
+                </p>
+                {/* 错误指示器 */}
+                {entry.error && (
+                  <div className={styles.errorIndicator}>
+                    ❌ 消息发送失败
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -723,6 +906,26 @@ const HomePage = () => {
         </div>
       </div>
       <SaveProjectModal isOpen={isSaveModalOpen} onClose={handleCloseSaveModal} onSave={actuallySaveProject} />
+      {/* 在页面渲染中添加测试按钮（临时用于调试） */}
+      {process.env.NODE_ENV === 'development' && (
+        <button 
+          onClick={testStreamingConnection}
+          style={{
+            position: 'fixed',
+            top: '10px',
+            right: '10px',
+            background: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            zIndex: 9999,
+          }}
+        >
+          测试流式连接
+        </button>
+      )}
     </div>
   );
 };

@@ -13,6 +13,8 @@ export const AuthProvider = ({ children }) => {
   const checkAuthStatus = useCallback(async () => {
     const token = localStorage.getItem('access_token');
     if (!token) {
+      setIsAuthenticated(false);
+      setUser(null);
       setLoading(false);
       return;
     }
@@ -22,11 +24,13 @@ export const AuthProvider = ({ children }) => {
       const userData = await userAPI.getCurrentUser();
       setIsAuthenticated(true);
       setUser(userData);
+      console.log("AuthContext: Token validation successful, user authenticated");
     } catch (error) {
       console.error('Token validation failed:', error);
       // Token无效，清除本地存储
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
       setIsAuthenticated(false);
       setUser(null);
     } finally {
@@ -43,14 +47,25 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       const response = await authAPI.login({ username, password });
       
+      // 确保 token 已经保存（authAPI.login 中已经保存了）
+      if (response.access_token) {
+        localStorage.setItem('access_token', response.access_token);
+        localStorage.setItem('refresh_token', response.refresh_token);
+      }
+      
       // 保存用户信息到localStorage
-      localStorage.setItem('user', JSON.stringify(response.user || { username }));
+      const userInfo = response.user || { username };
+      localStorage.setItem('user', JSON.stringify(userInfo));
       
       setIsAuthenticated(true);
-      setUser(response.user || { username });
+      setUser(userInfo);
       
       console.log("AuthContext: User logged in successfully.");
-      return { success: true, user: response.user };
+      
+      // 不要页面刷新，直接返回成功
+      // window.location.reload(); // 删除这行
+      
+      return { success: true, user: userInfo };
     } catch (error) {
       console.error("AuthContext: Login failed.", error);
       return { success: false, error: error.message };
@@ -70,12 +85,13 @@ export const AuthProvider = ({ children }) => {
         password: userData.password
       });
       
-      localStorage.setItem('user', JSON.stringify(response));
+      const userInfo = loginResponse.user || { username: userData.username };
+      localStorage.setItem('user', JSON.stringify(userInfo));
       setIsAuthenticated(true);
-      setUser(response);
+      setUser(userInfo);
       
       console.log("AuthContext: User registered and logged in successfully.");
-      return { success: true, user: response };
+      return { success: true, user: userInfo };
     } catch (error) {
       console.error("AuthContext: Registration failed.", error);
       return { success: false, error: error.message };
@@ -149,10 +165,6 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  if (loading) {
-    return <div>Loading Application...</div>;
-  }
-
   return (
     <AuthContext.Provider value={{ 
       isAuthenticated, 
@@ -173,7 +185,7 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

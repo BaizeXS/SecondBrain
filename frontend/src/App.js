@@ -24,13 +24,20 @@ import './styles/global.css';
 const ProtectedRoute = ({ children, showAppHeader = true, mainLayoutProps = {} }) => {
   const { isAuthenticated, loading } = useAuth();
 
+  console.log('ProtectedRoute - isAuthenticated:', isAuthenticated, 'loading:', loading);
+
   if (loading) {
-    return <div>Checking authentication...</div>; // 或者一个 Spinner 组件
+    return <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh'}}>
+      Checking authentication...
+    </div>;
   }
 
   if (!isAuthenticated) {
+    console.log('User not authenticated, redirecting to login');
     return <Navigate to="/login" replace />;
   }
+
+  console.log('User authenticated, rendering protected content');
   return (
     <MainLayout showAppHeader={showAppHeader} {...mainLayoutProps}>
       {children}
@@ -40,12 +47,20 @@ const ProtectedRoute = ({ children, showAppHeader = true, mainLayoutProps = {} }
 
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
+  
+  console.log('PublicRoute - isAuthenticated:', isAuthenticated, 'loading:', loading);
+  
   if (loading) {
-    return <div>Checking authentication...</div>;
+    return <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh'}}>
+      Checking authentication...
+    </div>;
   }
+  
   if (isAuthenticated) {
+    console.log('User already authenticated, redirecting to home');
     return <Navigate to="/" replace />;
   }
+  
   return children;
 };
 

@@ -299,3 +299,124 @@
 }
 .inputActionButton:hover { background-color: var(--hover-background-color, #f0f0f0); color: var(--text-color, #333); }
 .deepSearchActive { color: var(--primary-color, #007bff) !important; background-color: #e6f7ff !important; }
+
+/* 优化的流式输出样式 */
+
+.streamingIndicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  opacity: 0.7;
+  font-size: 0.85em;
+  color: #888;
+}
+
+.typingDots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.typingDots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background-color: #4CAF50;
+  border-radius: 50%;
+  animation: typingPulse 1.5s infinite ease-in-out;
+}
+
+.typingDots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typingDots span:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.typingDots span:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes typingPulse {
+  0%, 70%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  35% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+.errorIndicator {
+  color: #ff4444;
+  font-size: 0.9em;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background-color: #ffebee;
+  border-radius: 4px;
+  border-left: 3px solid #ff4444;
+  display: inline-block;
+}
+
+/* 流式消息的打字机效果 */
+.aiMessage .messageBubbleContent {
+  position: relative;
+}
+
+.aiMessage .messageBubbleContent.streaming::after {
+  content: '|';
+  animation: blink 1s infinite;
+  color: #4CAF50;
+  font-weight: bold;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* 流式输出相关样式 */
+
+.streaming {
+  position: relative;
+}
+
+.streamingCursor {
+  display: inline-block;
+  color: #4CAF50;
+  font-weight: bold;
+  animation: blink 1s infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* 优化消息气泡的动画 */
+.aiMessage .messageBubbleContent {
+  transition: all 0.1s ease;
+}
+
+.aiMessage .messageBubbleContent.streaming {
+  border-left: 3px solid #4CAF50;
+  background-color: #f9f9f9;
+}
+
+/* 流式消息的特殊样式 */
+.aiMessage .messageBubbleContent.streaming {
+  border-left: 3px solid #4CAF50;
+  background-color: #f8fffe;
+  transition: background-color 0.2s ease;
+}

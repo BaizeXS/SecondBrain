@@ -4,6 +4,8 @@ services:
     build: ./frontend
     ports:
       - "80:80"
+    environment:
+      - DANGEROUSLY_DISABLE_HOST_CHECK=true
     depends_on:
       - backend
 

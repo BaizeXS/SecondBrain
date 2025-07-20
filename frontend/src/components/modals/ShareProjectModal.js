@@ -151,7 +151,7 @@ const ShareProjectModal = ({ isOpen, onClose, projectData, onUpdateSharing }) =>
                   {sharedWith.map((user, index) => (
                     <div key={index} className={styles.sharedUserItem}>
                       <div className={styles.userAvatar}>
-                        {user.email.charAt(0).toUpperCase()}
+                        {user.email && user.email.charAt(0).toUpperCase()}
                       </div>
                       <div className={styles.userInfo}>
                         <span className={styles.userEmail}>{user.email}</span>
