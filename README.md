@@ -1,4 +1,4 @@
-# SecondBrain - AI驱动的知识管理系统
+# SecondBrain - AI 驱动的知识管理系统
 
 一个基于 AI 的智能知识管理系统，帮助用户高效管理和检索个人知识。
 
@@ -21,11 +21,13 @@
 ### 配置
 
 1. 复制环境变量文件：
+
 ```bash
 cp backend/.env.example backend/.env
 ```
 
 2. 编辑 `backend/.env`，添加至少一个 AI API Key：
+
 ```env
 # 至少配置一个
 OPENAI_API_KEY=sk-xxx
@@ -44,7 +46,8 @@ chmod +x start.sh test.sh
 ```
 
 服务启动后访问：
-- 前端：http://localhost:3000
+
+- 前端：http://localhost
 - 后端 API：http://localhost:8000
 - API 文档：http://localhost:8000/api/v1/docs
 - MinIO 控制台：http://localhost:9001（用户名/密码：minioadmin/minioadmin）
@@ -139,6 +142,7 @@ npm run build
 3. 运行 `./start.sh`
 
 对于生产环境，建议：
+
 - 修改数据库密码
 - 配置 HTTPS
 - 设置备份策略

@@ -4,8 +4,6 @@ services:
     build: ./frontend
     ports:
       - "80:80"
-    environment:
-      - API_URL=http://backend:8000
     depends_on:
       - backend
 
@@ -25,11 +23,15 @@ services:
     env_file:
       - ./backend/.env
     depends_on:
-      - postgres
-      - redis
-      - minio
-      - qdrant
-    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # PostgreSQL 数据库
   postgres:
@@ -42,6 +44,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secondbrain -d secondbrain"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # Redis 缓存
   redis:
@@ -77,3 +84,7 @@ volumes:
   redis_data:
   minio_data:
   qdrant_data:
+
+networks:
+  default:
+    name: secondbrain-network
