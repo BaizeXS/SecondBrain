@@ -248,35 +248,3 @@ if (shouldGenerateFile) {
 **修复内容**：
 1. **HomePage.js**: 修复`newUserMessage`中的文件映射，保留AI标记
 2. **ProjectPage.js**: 修复`newUserMessage`和会话文件映射，保留AI标记
-
-**修复代码**：
-```javascript
-// 修复前
-files: filesAttachedToMessage.map(f => ({ 
-  id: f.id, 
-  name: f.name, 
-  size: f.size, 
-  type: f.type, 
-  uploadedAt: f.uploadedAt, 
-  preview: f.preview 
-}))
-
-// 修复后
-files: filesAttachedToMessage.map(f => ({ 
-  id: f.id, 
-  name: f.name, 
-  size: f.size, 
-  type: f.type, 
-  uploadedAt: f.uploadedAt, 
-  preview: f.preview,
-  isAiGenerated: f.isAiGenerated,
-  aiAgent: f.aiAgent
-}))
-```
-
-**影响范围**：
-- 聊天消息中的文件附件显示正确的AI标记
-- 创建者信息正确显示"Creator: AI"
-- AI标签正确显示
-
-## 技术实现
