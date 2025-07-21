@@ -105,7 +105,7 @@ class Settings(BaseSettings):
     ]
 
     # CORS配置
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://43.160.192.140,http://43.160.192.140:80"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://43.160.192.140,http://43.160.192.140:80,http://43.160.192.140:3000"
     ALLOWED_METHODS: list[str] = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     ALLOWED_HEADERS: list[str] = ["*"]
 

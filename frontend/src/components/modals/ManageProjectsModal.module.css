@@ -1,0 +1,407 @@
+/* ManageProjectsModal.module.css */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modalContent {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  width: 90vw;
+  max-width: 900px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s ease-out;
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fafafa;
+  border-radius: 12px 12px 0 0;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.closeButton:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+
+.modalBody {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+}
+
+/* 工具栏样式 */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.searchBox {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 10px 12px 10px 38px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s ease;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+}
+
+.filterLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #555;
+  cursor: pointer;
+}
+
+.filterLabel input[type="checkbox"] {
+  transform: scale(1.1);
+}
+
+/* 批量操作样式 */
+.batchActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.selectActions {
+  display: flex;
+  gap: 8px;
+}
+
+.deleteActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actionButton {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.actionButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.actionButton:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+/* 默认按钮 */
+.actionButton {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.actionButton:not(:disabled):hover {
+  background: #e0e0e0;
+}
+
+/* 警告按钮 */
+.warningButton {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.warningButton:not(:disabled):hover {
+  background: #ffeaa7;
+}
+
+/* 危险按钮 */
+.dangerButton {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c2c7;
+}
+
+.dangerButton:not(:disabled):hover {
+  background: #f5c2c7;
+}
+
+/* 项目列表样式 */
+.projectsList {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: white;
+}
+
+.projectItem {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s ease;
+  gap: 12px;
+}
+
+.projectItem:hover {
+  background: #f8f9fa;
+}
+
+.projectItem:last-child {
+  border-bottom: none;
+}
+
+.projectItem.autoCreated {
+  background: #fff3e0;
+  border-left: 4px solid #ff9800;
+}
+
+.projectItem.autoCreated:hover {
+  background: #ffe0b2;
+}
+
+.projectCheckbox {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.projectCheckbox input[type="checkbox"] {
+  transform: scale(1.2);
+  cursor: pointer;
+}
+
+.projectInfo {
+  flex: 1;
+}
+
+.projectName {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.autoCreatedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: #ff9800;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+
+.projectMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.projectMeta span {
+  word-break: break-word;
+}
+
+.emptyState {
+  padding: 40px 20px;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+
+/* 底部样式 */
+.modalFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-top: 1px solid #e5e5e5;
+  background: #fafafa;
+  border-radius: 0 0 12px 12px;
+  gap: 16px;
+}
+
+.footerText {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.cancelButton {
+  padding: 8px 20px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.cancelButton:hover {
+  background: #545b62;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .modalContent {
+    width: 95vw;
+    max-height: 90vh;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchBox {
+    min-width: auto;
+  }
+
+  .batchActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .selectActions,
+  .deleteActions {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .modalFooter {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .projectItem {
+    padding: 12px;
+  }
+
+  .projectName {
+    font-size: 0.95rem;
+  }
+
+  .projectMeta {
+    font-size: 0.8rem;
+  }
+} 

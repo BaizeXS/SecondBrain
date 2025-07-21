@@ -5,6 +5,7 @@ import styles from './ProjectPage.module.css';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { useAgents, getIconComponent } from '../contexts/AgentContext'; // <<< 导入 useAgents 和 getIconComponent
+import { useChat } from '../contexts/ChatContext'; // 新增：导入useChat
 import {
   FiMessageSquare, FiLayout, FiFileText, FiEdit3,
   FiBriefcase, FiEdit2, FiTerminal, FiSend, FiX, // For Chat & Input
@@ -13,6 +14,8 @@ import {
 } from 'react-icons/fi';
 import MessageFileAttachments from '../components/chat/MessageFileAttachments';
 import ChatInputInterface from '../components/chat/ChatInputInterface';
+import MarkdownRenderer from '../components/chat/MarkdownRenderer';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import ShareProjectModal from '../components/modals/ShareProjectModal';
 import apiService from '../services/apiService';
 
@@ -42,7 +45,9 @@ const simplifyFileForContext = f => ({
   preview: f.preview, 
   uploadedAt: f.uploadedAt,
   isAiGenerated: f.isAiGenerated,
-  aiAgent: f.aiAgent
+  aiAgent: f.aiAgent,
+  rawFile: f.rawFile,
+  url: f.url
 });
 const simplifyNoteForContext = n => ({ 
   id: n.id, 
@@ -152,7 +157,7 @@ const ProjectDashboardView = ({ projectData, onStartChat }) => {
 };
 
 // --- ProjectChatView Sub-component ---
-const ProjectChatView = ({ projectData, activeSessionId, onSendMessageToProject, availableModels = [] }) => {
+const ProjectChatView = ({ projectData, activeSessionId, onGoBackToDashboard, onSendMessageToProject, availableModels = [], localChatSessions }) => {
   const chatMessagesViewRef = useRef(null);
   let messagesToShow = [];
   let sessionTitle = `New Chat for "${projectData.name}"`;
@@ -173,8 +178,12 @@ const ProjectChatView = ({ projectData, activeSessionId, onSendMessageToProject,
     }
   }, [agents, loadingAgents, projectChatActiveAgentId]);
 
-  if (activeSessionId && projectData.sessions) {
-    const activeSession = projectData.sessions.find(s => s.sessionId === activeSessionId);
+  // 使用本地状态和项目状态的合并数据，优先使用本地状态
+  if (activeSessionId) {
+    const localSession = localChatSessions.find(s => s.sessionId === activeSessionId);
+    const projectSession = projectData.sessions?.find(s => s.sessionId === activeSessionId);
+    
+    const activeSession = localSession || projectSession;
     if (activeSession) {
       messagesToShow = activeSession.messages || [];
       sessionTitle = activeSession.aiSummary || `Chat Session (${new Date(activeSession.startTime).toLocaleDateString()})`;
@@ -221,7 +230,27 @@ const ProjectChatView = ({ projectData, activeSessionId, onSendMessageToProject,
                   {((entry.files && entry.files.length > 0) || (entry.notes && entry.notes.length > 0)) && (
                     <MessageFileAttachments files={entry.files || []} notes={entry.notes || []} isAiMessage={entry.sender === 'ai'} />
                   )}
-                  <p>{entry.text}</p>
+                  {entry.sender === 'ai' ? (
+                    <>
+                      {entry.streaming && !entry.text ? (
+                        <div className={styles.thinkingIndicator}>
+                          <span>正在思考</span>
+                          <span className={styles.streamingCursor}>|</span>
+                        </div>
+                      ) : (
+                        <ErrorBoundary
+                          fallback={<p>{entry.text}</p>}
+                        >
+                          <MarkdownRenderer>
+                            {entry.text}
+                          </MarkdownRenderer>
+                        </ErrorBoundary>
+                      )}
+                      {entry.streaming && entry.text && <span className={styles.streamingCursor}>|</span>}
+                    </>
+                  ) : (
+                    <p>{entry.text}{entry.streaming && <span className={styles.streamingCursor}>|</span>}</p>
+                  )}
                 </div>
               </div>
             ))
@@ -286,12 +315,14 @@ const ProjectPage = () => {
   const { openRightSidebarWithView, isRightSidebarOpen, rightSidebarView, closeRightSidebar } = useSidebar();
   const { projects, getProjectById, updateProject, updateProjectSharing, loadProjectDocuments, loadingProjects: projectsContextLoading } = useProjects();
   const { agents } = useAgents();
+  const { getDocumentIdsForAPI, getFilesNeedingUpload, clearChatSelections } = useChat(); // 新增：使用重新构建的ChatContext API
   const [projectData, setProjectData] = useState(null); // Local SSoT for this page after fetching
   const [pageLoading, setPageLoading] = useState(true);
   const [currentView, setCurrentView] = useState('dashboard');
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [conversationId, setConversationId] = useState(null); // 后端对话ID
+  const [localChatSessions, setLocalChatSessions] = useState([]); // 本地聊天会话状态
   const [availableModels, setAvailableModels] = useState([]);
 
 
@@ -352,7 +383,10 @@ const ProjectPage = () => {
 
     const newFullFilesList = updatedSimplifiedFiles.map(sf => {
       const existing = currentProjectFromContext.files?.find(f => f.id === sf.id);
-      return existing ? { ...existing, ...sf, rawFile: existing.rawFile } : { ...sf, rawFile: null };
+      // 🔧 修复：保留简化文件中的rawFile，不要覆盖为null
+      return existing 
+        ? { ...existing, ...sf, rawFile: sf.rawFile || existing.rawFile }
+        : { ...sf }; // 保持简化文件中的所有数据，包括rawFile
     });
     // 更新 ProjectContext，这会触发上面的 Effect 1 重新设置 projectData
     updateProject(projectId, { ...currentProjectFromContext, files: newFullFilesList });
@@ -417,8 +451,11 @@ const ProjectPage = () => {
       }
     }
   }, [
-    projectData, // 主驱动：当本地 projectData 更新后，此 effect 执行
-    isRightSidebarOpen, rightSidebarView, // 侧边栏状态
+    projectData?.id, // 只监听项目ID变化，避免因内容更新导致循环
+    projectData?.name, // 监听名称变化
+    projectData?.files?.length, // 监听文件数量变化
+    projectData?.notes?.length, // 监听笔记数量变化
+    isRightSidebarOpen, rightSidebarView?.type, rightSidebarView?.data?.projectId, // 侧边栏状态
     openRightSidebarWithView, // stable
     handleUpdateProjectFiles, handleUpdateProjectNotes, // stable callbacks
     pageLoading, projectsContextLoading // guards
@@ -428,12 +465,14 @@ const ProjectPage = () => {
   // 辅助函数：上传文件到后端
   const uploadFileToBackend = async (file, spaceId) => {
     try {
+      console.log('Uploading file to space:', spaceId);
       const uploadedDoc = await apiService.document.uploadDocument(
         spaceId,
         file,
         file.name,
         ['chat-attachment']
       );
+      console.log('File uploaded successfully:', uploadedDoc);
       return uploadedDoc;
     } catch (error) {
       console.error('File upload failed:', error);
@@ -463,20 +502,33 @@ const ProjectPage = () => {
         setConversationId(currentConversationId);
       }
       
-      // 2. 处理文档上传
-      const documentIds = [];
-      if (attachedFiles.length > 0) {
-        for (const file of attachedFiles) {
-          if (file.id && !isNaN(parseInt(file.id))) {
-            documentIds.push(parseInt(file.id));
-          } else if (file.rawFile) {
-            const uploadedDoc = await uploadFileToBackend(file.rawFile, parseInt(projectData.spaceId || projectData.id));
+      // 🆕 使用重新构建的ChatContext API进行文档处理
+      console.log('🚀 ProjectPage: Using new ChatContext API for document handling');
+      const documentIds = getDocumentIdsForAPI();
+      const filesToUpload = getFilesNeedingUpload();
+      
+      console.log('📋 ProjectPage: Document IDs from ChatContext:', documentIds);
+      console.log('📤 ProjectPage: Files needing upload:', filesToUpload.length);
+      
+      // 处理文件上传
+      if (filesToUpload.length > 0 && projectData?.spaceId) {
+        console.log('📤 ProjectPage: Uploading files...');
+        for (const file of filesToUpload) {
+          try {
+            console.log(`📤 Uploading file: ${file.name}`);
+            const uploadedDoc = await uploadFileToBackend(file.rawFile, parseInt(projectData.spaceId));
             if (uploadedDoc && uploadedDoc.id) {
               documentIds.push(uploadedDoc.id);
+              console.log(`✅ File uploaded successfully, document ID: ${uploadedDoc.id}`);
             }
+          } catch (uploadError) {
+            console.error(`❌ Failed to upload file ${file.name}:`, uploadError);
+            alert(`文件 "${file.name}" 上传失败: ${uploadError.message}`);
           }
         }
       }
+      
+      console.log('🎯 ProjectPage: Final document IDs for AI:', documentIds);
       
       // 3. 获取聊天历史
       let chatHistory = [];
@@ -526,7 +578,6 @@ const ProjectPage = () => {
 
       // 7. 更新会话状态
       let targetSessionId = currentActiveSessionId;
-      let updatedSessions = projectData.sessions ? [...projectData.sessions] : [];
       
       if (!targetSessionId) {
         // 创建新会话
@@ -545,44 +596,58 @@ const ProjectPage = () => {
             isAiGenerated: n.isAiGenerated, aiAgent: n.aiAgent
           }))
         };
-        updatedSessions = [newSession, ...updatedSessions];
+        
+        // 8. 更新本地状态
+        setLocalChatSessions(prev => [newSession, ...prev]);
+        setActiveSessionId(targetSessionId);
       } else {
-        // 更新现有会话
-        const sessionIndex = updatedSessions.findIndex(s => s.sessionId === targetSessionId);
-        if (sessionIndex !== -1) {
-          const sessionToUpdate = { ...updatedSessions[sessionIndex] };
-          sessionToUpdate.messages = [...(sessionToUpdate.messages || []), newUserMessage, streamingAiResponse];
-          sessionToUpdate.endTime = new Date().toISOString();
-          
-          const newSessionFiles = attachedFiles.map(f => ({ 
-            id: f.id, name: f.name, type: f.type, size: f.size, 
-            uploadedAt: f.uploadedAt, isAiGenerated: f.isAiGenerated, aiAgent: f.aiAgent
-          }));
-          sessionToUpdate.sessionFiles = Array.from(new Map([...(sessionToUpdate.sessionFiles || []), ...newSessionFiles].map(f => [f.id, f])).values());
-          
-          const newSessionNotes = attachedNotes.map(n => ({ 
-            id: n.id, name: n.name, content: n.content, createdAt: n.createdAt,
-            isAiGenerated: n.isAiGenerated, aiAgent: n.aiAgent
-          }));
-          sessionToUpdate.sessionNotes = Array.from(new Map([...(sessionToUpdate.sessionNotes || []), ...newSessionNotes].map(n => [n.id, n])).values());
-          
-          updatedSessions[sessionIndex] = sessionToUpdate;
-        }
+        // 更新现有会话 - 使用本地状态
+        setLocalChatSessions(prev => {
+          const sessionIndex = prev.findIndex(s => s.sessionId === targetSessionId);
+          if (sessionIndex !== -1) {
+            const sessionToUpdate = { ...prev[sessionIndex] };
+            sessionToUpdate.messages = [...(sessionToUpdate.messages || []), newUserMessage, streamingAiResponse];
+            sessionToUpdate.endTime = new Date().toISOString();
+            
+            const newSessionFiles = attachedFiles.map(f => ({ 
+              id: f.id, name: f.name, type: f.type, size: f.size, 
+              uploadedAt: f.uploadedAt, isAiGenerated: f.isAiGenerated, aiAgent: f.aiAgent
+            }));
+            sessionToUpdate.sessionFiles = Array.from(new Map([...(sessionToUpdate.sessionFiles || []), ...newSessionFiles].map(f => [f.id, f])).values());
+            
+            const newSessionNotes = attachedNotes.map(n => ({ 
+              id: n.id, name: n.name, content: n.content, createdAt: n.createdAt,
+              isAiGenerated: n.isAiGenerated, aiAgent: n.aiAgent
+            }));
+            sessionToUpdate.sessionNotes = Array.from(new Map([...(sessionToUpdate.sessionNotes || []), ...newSessionNotes].map(n => [n.id, n])).values());
+            
+            const newSessions = [...prev];
+            newSessions[sessionIndex] = sessionToUpdate;
+            return newSessions;
+          } else {
+            // 如果本地状态没有，从项目状态创建新的本地副本
+            const projectSession = projectData.sessions?.find(s => s.sessionId === targetSessionId);
+            if (projectSession) {
+              const updatedSession = {
+                ...projectSession,
+                messages: [...(projectSession.messages || []), newUserMessage, streamingAiResponse],
+                endTime: new Date().toISOString()
+              };
+              return [updatedSession, ...prev];
+            }
+            return prev;
+          }
+        });
       }
-
-      // 8. 立即更新项目状态以显示用户消息和AI占位符
-      const updatedProjectData = {
-        ...projectData,
-        sessions: updatedSessions,
-      };
-      updateProject(projectData.id, updatedProjectData);
       
+      console.log('🎯 ProjectPage: Final document IDs for AI:', documentIds);
+
       // 9. 开始流式聊天
       const streamResponse = await apiService.chat.createStreamingChatCompletion({
         model: selectedModel,
         messages: messages,
         temperature: 0.7,
-        stream: true,
+        stream: true, // 确保启用流式输出
         conversation_id: currentConversationId,
         document_ids: documentIds.length > 0 ? documentIds : undefined
       });
@@ -592,11 +657,18 @@ const ProjectPage = () => {
       const decoder = new TextDecoder();
       let buffer = '';
       let fullContent = '';
+      let updateCounter = 0;
+      const UPDATE_THROTTLE = 10; // 每10个chunk更新一次UI
+
+      console.log('开始处理流式响应...');
 
       while (true) {
         const { done, value } = await reader.read();
         
-        if (done) break;
+        if (done) {
+          console.log('流式响应完成，最终内容长度:', fullContent.length);
+          break;
+        }
         
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
@@ -607,17 +679,54 @@ const ProjectPage = () => {
             const data = line.slice(6);
             
             if (data === '[DONE]') {
-              // 流式完成，更新最终状态
-              const finalSessionIndex = updatedSessions.findIndex(s => s.sessionId === targetSessionId);
-              if (finalSessionIndex !== -1) {
-                updatedSessions[finalSessionIndex].messages = updatedSessions[finalSessionIndex].messages.map(msg => 
-                  msg.id === aiMessageId 
-                    ? { ...msg, text: fullContent, streaming: false }
-                    : msg
-                );
-                updatedSessions[finalSessionIndex].endTime = new Date().toISOString();
-              }
-              break;
+              console.log('收到[DONE]信号，完成流式响应');
+              
+              // 最终更新本地状态
+              setLocalChatSessions(prev => {
+                return prev.map(session => {
+                  if (session.sessionId === targetSessionId) {
+                    return {
+                      ...session,
+                      messages: session.messages.map(msg => 
+                        msg.id === aiMessageId 
+                          ? { ...msg, text: fullContent, streaming: false }
+                          : msg
+                      ),
+                      endTime: new Date().toISOString()
+                    };
+                  }
+                  return session;
+                });
+              });
+              
+              // 同步最终状态到项目
+              setTimeout(() => {
+                const finalLocalSessions = localChatSessions.map(session => {
+                  if (session.sessionId === targetSessionId) {
+                    return {
+                      ...session,
+                      messages: session.messages.map(msg => 
+                        msg.id === aiMessageId 
+                          ? { ...msg, text: fullContent, streaming: false }
+                          : msg
+                      ),
+                      endTime: new Date().toISOString()
+                    };
+                  }
+                  return session;
+                });
+                
+                updateProject(projectData.id, {
+                  ...projectData,
+                  sessions: [...(projectData.sessions || []), ...finalLocalSessions.filter(
+                    localSession => !projectData.sessions?.some(
+                      projectSession => projectSession.sessionId === localSession.sessionId
+                    )
+                  )]
+                });
+              }, 100);
+              
+              return; // 退出函数
             }
             
             try {
@@ -626,20 +735,27 @@ const ProjectPage = () => {
               
               if (content) {
                 fullContent += content;
+                updateCounter++;
                 
-                // 实时更新AI消息
-                const sessionIndex = updatedSessions.findIndex(s => s.sessionId === targetSessionId);
-                if (sessionIndex !== -1) {
-                  updatedSessions[sessionIndex].messages = updatedSessions[sessionIndex].messages.map(msg => 
-                    msg.id === aiMessageId 
-                      ? { ...msg, text: fullContent, streaming: true }
-                      : msg
-                  );
+                // 节流更新：只在特定间隔更新本地状态
+                if (updateCounter % UPDATE_THROTTLE === 0) {
+                  console.log(`流式更新 (${updateCounter}): 内容长度 ${fullContent.length}`);
                   
-                  // 实时更新项目状态
-                  updateProject(projectData.id, {
-                    ...projectData,
-                    sessions: updatedSessions,
+                  // 更新本地聊天状态
+                  setLocalChatSessions(prev => {
+                    return prev.map(session => {
+                      if (session.sessionId === targetSessionId) {
+                        return {
+                          ...session,
+                          messages: session.messages.map(msg => 
+                            msg.id === aiMessageId 
+                              ? { ...msg, text: fullContent, streaming: true }
+                              : msg
+                          )
+                        };
+                      }
+                      return session;
+                    });
                   });
                 }
               }
@@ -649,13 +765,6 @@ const ProjectPage = () => {
           }
         }
       }
-
-      // 11. 最终更新项目状态
-      const finalUpdatedProjectData = {
-        ...projectData,
-        sessions: updatedSessions,
-      };
-      updateProject(projectData.id, finalUpdatedProjectData);
 
     } catch (error) {
       console.error('Error sending streaming message to project:', error);
@@ -741,6 +850,7 @@ const ProjectPage = () => {
             onGoBackToDashboard={handleGoBackToDashboard}
             onSendMessageToProject={handleSendMessageToProject}
             availableModels={availableModels}
+            localChatSessions={localChatSessions}
           />
         )}
       </div>

@@ -1,14 +1,18 @@
 // src/pages/NeuroCorePage.js
-import React from 'react'; // 移除了 useState，因为模态框状态由 Context 管理
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styles from './NeuroCorePage.module.css';
 import { useProjects } from '../contexts/ProjectContext';
-import { FiPlusSquare, FiTrash2 } from 'react-icons/fi'; // FiEdit 可以移除，如果没用
+import { FiPlusSquare, FiTrash2, FiSettings } from 'react-icons/fi';
+import ManageProjectsModal from '../components/modals/ManageProjectsModal';
 
 const NeuroCorePage = () => {
   // 从 Context 获取 projects 列表, openCreateProjectModal 函数, deleteProject 函数, 和加载状态
-  const { projects, openCreateProjectModal, deleteProject, loadingProjects } = useProjects();
+  const { projects, openCreateProjectModal, deleteProject, batchDeleteProjects, refreshProjects, loadingProjects } = useProjects();
   const navigate = useNavigate(); // useNavigate 仍然需要，以防未来有其他导航需求
+  
+  // 项目管理模态框状态
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
 
   // handleCreateProjectClick 现在只负责打开模态框
   const handleTriggerCreateModal = () => {
@@ -16,17 +20,39 @@ const NeuroCorePage = () => {
     openCreateProjectModal(); // 调用 Context 中提供的函数来打开全局模态框
   };
 
-  const handleDeleteProject = (event, projectIdToDelete, projectName) => {
+  const handleDeleteProject = async (event, projectIdToDelete, projectName) => {
     event.preventDefault();
     event.stopPropagation();
     if (window.confirm(`Are you sure you want to delete the project "${projectName}"? This action cannot be undone.`)) {
       if (deleteProject) {
-        deleteProject(projectIdToDelete);
-        alert(`Project "${projectName}" deleted.`);
+        try {
+          await deleteProject(projectIdToDelete);
+          // 删除成功的提示已经在ProjectContext中处理了
+        } catch (error) {
+          // 错误处理已经在ProjectContext中完成
+          console.error(`Failed to delete project ${projectName}:`, error);
+        }
       } else {
         alert("Delete functionality is not available in ProjectContext.");
       }
     }
+  };
+
+  // 处理项目管理模态框
+  const handleOpenManageModal = () => {
+    setIsManageModalOpen(true);
+  };
+
+  const handleCloseManageModal = () => {
+    setIsManageModalOpen(false);
+  };
+
+  const handleBatchDeleteProjects = async (projectIds) => {
+    await batchDeleteProjects(projectIds);
+  };
+
+  const handleRefreshProjects = async () => {
+    await refreshProjects();
   };
 
   if (loadingProjects) {
@@ -43,7 +69,20 @@ const NeuroCorePage = () => {
 
   return (
     <div className={styles.neuroCorePage}>
-      <h2>Welcome to Second Brain</h2>
+      <div className={styles.pageHeader}>
+        <div className={styles.headerContent}>
+          <h2>Welcome to Second Brain</h2>
+          <button
+            onClick={handleOpenManageModal}
+            className={styles.manageButton}
+            title="管理项目"
+          >
+            <FiSettings />
+            管理项目
+          </button>
+        </div>
+      </div>
+      
       <p className={styles.platformDescription}>
         Second Brain is an AI-driven smart knowledge management and learning aid platform.
         Positioned as "AI + knowledge management + learning ecosystem", it uses NLP, KG, RAG and edge computing.
@@ -91,6 +130,16 @@ const NeuroCorePage = () => {
           </Link>
         ))}
       </div>
+      
+      {/* 项目管理模态框 */}
+      <ManageProjectsModal
+        isOpen={isManageModalOpen}
+        onClose={handleCloseManageModal}
+        projects={projects}
+        onDeleteProjects={handleBatchDeleteProjects}
+        onRefreshProjects={handleRefreshProjects}
+      />
+      
       {/* 创建项目的模态框现在由 App.js 中的 GlobalCreateProjectModal 渲染和管理 */}
     </div>
   );

@@ -9,12 +9,53 @@
     overflow: hidden; /* 防止 neuroCorePage 自身出现不必要的滚动条，滚动交给 cardsContainer */
   }
   
+  /* 页面头部 */
+  .pageHeader {
+    margin-bottom: 20px;
+    flex-shrink: 0;
+  }
+  
+  .headerContent {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  
   .neuroCorePage h2 {
     font-size: 1.8rem; /* 调整标题大小 */
     font-weight: 600;
     color: #333; /* 深色文字 */
-    margin-bottom: 8px;
+    margin: 0; /* 移除默认margin，使用headerContent的gap */
     flex-shrink: 0; /* 防止标题在 flex 布局中被压缩 */
+  }
+  
+  /* 管理按钮 */
+  .manageButton {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #f8f9fa;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+  
+  .manageButton:hover {
+    background: #e9ecef;
+    color: #495057;
+    border-color: #ced4da;
+    transform: translateY(-1px);
+  }
+  
+  .manageButton:active {
+    transform: translateY(0);
   }
   
   .platformDescription {

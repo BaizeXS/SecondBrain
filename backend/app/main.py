@@ -69,13 +69,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# 中间件配置
+# 中间件配置 - 临时允许所有origins解决CORS问题
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=settings.ALLOWED_METHODS,
-    allow_headers=settings.ALLOWED_HEADERS,
+    allow_origins=["*"],  # 临时允许所有origins
+    allow_credentials=False,  # 设为False以配合*
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 # 信任主机中间件

@@ -52,10 +52,15 @@ class ChatService:
 
             # 如果提供了文档ID，获取文档内容
             if request.document_ids:
+                logger.info(f"🔍 ChatService收到文档ID请求: {request.document_ids}, user_id={user.id}")
+                
                 context = await self._get_documents_context(
                     db, request.document_ids, user.id
                 )
+                
                 if context:
+                    logger.info(f"✅ 获取到文档上下文，长度: {len(context)} 字符")
+                    
                     # 在用户消息前插入文档上下文
                     context_message = {
                         "role": "system",
@@ -67,6 +72,12 @@ class ChatService:
                         len(messages)
                     )
                     messages.insert(user_msg_index, context_message)
+                    logger.info(f"📝 文档上下文已插入到消息列表，位置: {user_msg_index}")
+                else:
+                    logger.warning(f"❌ 无法获取文档上下文: document_ids={request.document_ids}")
+                    
+                    # 记录详细的调试信息
+                    logger.warning(f"🔍 调试信息: user_id={user.id}, conversation_id={request.conversation_id}, space_id={request.space_id}")
 
             # 如果有对话ID，加载历史消息
             if request.conversation_id:
@@ -259,6 +270,8 @@ class ChatService:
     ) -> str | None:
         """获取文档内容作为上下文."""
         try:
+            logger.info(f"🔍 获取文档上下文: document_ids={document_ids}, user_id={user_id}")
+            
             # 查询文档
             stmt = select(Document).where(
                 Document.id.in_(document_ids),
@@ -267,8 +280,22 @@ class ChatService:
             )
             result = await db.execute(stmt)
             documents = result.scalars().all()
-
+            
+            logger.info(f"📊 查询结果: 找到 {len(documents)} 个文档")
+            
             if not documents:
+                # 再次查询所有文档（包括content为None的）来调试
+                stmt_debug = select(Document).where(
+                    Document.id.in_(document_ids),
+                    Document.user_id == user_id
+                )
+                result_debug = await db.execute(stmt_debug)
+                all_docs = result_debug.scalars().all()
+                
+                logger.warning(f"🔍 调试查询: 找到 {len(all_docs)} 个文档（包括content为None）")
+                for doc in all_docs:
+                    logger.warning(f"📄 文档 {doc.id}: filename={doc.filename}, content_length={len(doc.content) if doc.content else 0}, content_is_none={doc.content is None}")
+                
                 return None
 
             # 构建上下文
@@ -276,6 +303,8 @@ class ChatService:
             total_length = 0
 
             for doc in documents:
+                logger.info(f"📄 处理文档 {doc.id}: filename={doc.filename}, content_length={len(doc.content) if doc.content else 0}")
+                
                 if doc.content:
                     doc_context = f"### 文档：{doc.title or doc.filename}\n{doc.content}\n"
 
@@ -289,8 +318,14 @@ class ChatService:
 
                     contexts.append(doc_context)
                     total_length += len(doc_context)
+                    logger.info(f"✅ 文档 {doc.id} 内容已添加到上下文，长度: {len(doc_context)}")
+                else:
+                    logger.warning(f"⚠️ 文档 {doc.id} 没有内容")
 
-            return "\n".join(contexts) if contexts else None
+            context_result = "\n".join(contexts) if contexts else None
+            logger.info(f"🎯 最终上下文长度: {len(context_result) if context_result else 0}")
+            
+            return context_result
 
         except Exception as e:
             logger.error(f"Error getting documents context: {str(e)}")

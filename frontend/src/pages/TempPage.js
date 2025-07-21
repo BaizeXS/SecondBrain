@@ -47,7 +47,11 @@ const TempPage = () => {
       createdAt: tempSession.lastUpdatedAt || new Date().toISOString(),
     };
     const savedProject = addProject(projectData);
-    if (savedProject && savedProject.id) {
+    if (savedProject === null) {
+      // 用户取消了项目创建，不执行后续操作
+      setIsSaveModalOpen(false);
+      return;
+    } else if (savedProject && savedProject.id) {
       alert(`Project "${projectName}" saved successfully!`);
       localStorage.removeItem('tempChatSession'); // 清除临时会话
       setTempSession(null); // 清空当前页面的显示

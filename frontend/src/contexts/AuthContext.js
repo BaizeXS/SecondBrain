@@ -40,6 +40,23 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkAuthStatus();
+    
+    // 监听认证过期事件
+    const handleAuthExpired = () => {
+      console.log("AuthContext: Auth expired event received, logging out");
+      // 直接执行登出逻辑，避免依赖循环
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      setIsAuthenticated(false);
+      setUser(null);
+    };
+    
+    window.addEventListener('auth-expired', handleAuthExpired);
+    
+    return () => {
+      window.removeEventListener('auth-expired', handleAuthExpired);
+    };
   }, [checkAuthStatus]);
 
   const login = useCallback(async (username, password) => {

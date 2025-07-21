@@ -1,0 +1,77 @@
+/* src/components/chat/MessageTimestamp.module.css */
+
+.timestamp {
+  font-size: 0.75em;
+  color: #6c757d;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+  display: inline-block;
+  margin-top: 0.25em;
+  cursor: default;
+  user-select: none;
+}
+
+.timestamp:hover {
+  opacity: 1;
+}
+
+/* 在消息气泡中的时间戳样式 */
+.timestamp.inMessage {
+  margin-top: 0.5em;
+  text-align: right;
+  display: block;
+  width: 100%;
+}
+
+/* 在用户消息中的时间戳 */
+.timestamp.userMessage {
+  color: rgba(28, 60, 90, 0.7);
+}
+
+.timestamp.userMessage:hover {
+  color: rgba(28, 60, 90, 0.9);
+}
+
+/* 在AI消息中的时间戳 */
+.timestamp.aiMessage {
+  color: rgba(108, 117, 125, 0.7);
+}
+
+.timestamp.aiMessage:hover {
+  color: rgba(108, 117, 125, 0.9);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .timestamp {
+    font-size: 0.7em;
+  }
+}
+
+/* 深色主题适配 */
+@media (prefers-color-scheme: dark) {
+  .timestamp {
+    color: #adb5bd;
+    opacity: 0.6;
+  }
+  
+  .timestamp:hover {
+    opacity: 0.9;
+  }
+  
+  .timestamp.userMessage {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  
+  .timestamp.userMessage:hover {
+    color: rgba(255, 255, 255, 0.8);
+  }
+  
+  .timestamp.aiMessage {
+    color: rgba(173, 181, 189, 0.6);
+  }
+  
+  .timestamp.aiMessage:hover {
+    color: rgba(173, 181, 189, 0.8);
+  }
+} 

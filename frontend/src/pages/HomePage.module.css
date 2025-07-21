@@ -91,6 +91,34 @@
   position: relative;
   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
+
+/* 消息悬停时显示操作按钮 */
+.messageBubbleContent:hover .messageActions {
+  opacity: 1;
+}
+
+/* 正在思考指示器 */
+.thinkingIndicator {
+  color: #6c757d;
+  font-style: italic;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thinkingIndicator span:first-child {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
 .messageBubbleContent p {
   margin: 0;
   white-space: pre-wrap; /* 保持换行符 */
@@ -125,6 +153,109 @@
 /* AI 气泡中的链接颜色 */
 .aiMessage .messageBubbleContent a {
     color: var(--primary-color, #007bff);
+}
+
+/* Markdown 内容样式 */
+.markdownContent {
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.markdownContent h1,
+.markdownContent h2,
+.markdownContent h3,
+.markdownContent h4,
+.markdownContent h5,
+.markdownContent h6 {
+  margin: 0.5em 0 0.3em 0;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.markdownContent h1 { font-size: 1.4em; }
+.markdownContent h2 { font-size: 1.3em; }
+.markdownContent h3 { font-size: 1.2em; }
+.markdownContent h4 { font-size: 1.1em; }
+.markdownContent h5 { font-size: 1.05em; }
+.markdownContent h6 { font-size: 1em; }
+
+.markdownContent p {
+  margin: 0.5em 0;
+}
+
+.markdownContent ul,
+.markdownContent ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.markdownContent li {
+  margin: 0.2em 0;
+}
+
+.markdownContent blockquote {
+  border-left: 3px solid #ddd;
+  margin: 0.5em 0;
+  padding: 0.3em 1em;
+  background-color: rgba(0, 0, 0, 0.03);
+  font-style: italic;
+}
+
+.markdownContent code {
+  background-color: rgba(0, 0, 0, 0.08);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}
+
+.markdownContent pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  padding: 0.8em;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.markdownContent pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.85em;
+}
+
+.markdownContent table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.markdownContent table th,
+.markdownContent table td {
+  border: 1px solid #ddd;
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+
+.markdownContent table th {
+  background-color: rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+}
+
+.markdownContent hr {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 1em 0;
+}
+
+.markdownContent a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.markdownContent a:hover {
+  text-decoration: underline;
 }
 
 
@@ -321,7 +452,7 @@
   display: inline-block;
   width: 6px;
   height: 6px;
-  background-color: #4CAF50;
+  background-color: #666;
   border-radius: 50%;
   animation: typingPulse 1.5s infinite ease-in-out;
 }
@@ -365,12 +496,7 @@
   position: relative;
 }
 
-.aiMessage .messageBubbleContent.streaming::after {
-  content: '|';
-  animation: blink 1s infinite;
-  color: #4CAF50;
-  font-weight: bold;
-}
+/* 移除::after伪元素光标，避免双光标问题 */
 
 @keyframes blink {
   0%, 50% {
@@ -389,10 +515,10 @@
 
 .streamingCursor {
   display: inline-block;
-  color: #4CAF50;
-  font-weight: bold;
+  color: #666;
+  font-weight: normal;
   animation: blink 1s infinite;
-  margin-left: 2px;
+  margin-left: 1px;
 }
 
 @keyframes blink {
@@ -409,14 +535,7 @@
   transition: all 0.1s ease;
 }
 
+/* 移除流式消息的边框和背景，保持简洁 */
 .aiMessage .messageBubbleContent.streaming {
-  border-left: 3px solid #4CAF50;
-  background-color: #f9f9f9;
-}
-
-/* 流式消息的特殊样式 */
-.aiMessage .messageBubbleContent.streaming {
-  border-left: 3px solid #4CAF50;
-  background-color: #f8fffe;
-  transition: background-color 0.2s ease;
+  /* 不添加任何特殊样式，保持原有外观 */
 }

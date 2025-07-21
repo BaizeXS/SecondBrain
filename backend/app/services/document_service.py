@@ -1,6 +1,7 @@
 """Complete document management service with content processing and CRUD operations."""
 
 import hashlib
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ class DocumentService:
     """完整的文档管理服务 - 包含内容处理和数据库操作."""
 
     def __init__(self) -> None:
+        self.logger = logging.getLogger(__name__)
         """初始化文档服务."""
         self.content_service = DocumentContentService()
 
@@ -26,14 +28,19 @@ class DocumentService:
         db: AsyncSession,
         space_id: int,
         filename: str,
-        content: str,
+        content: str | None,
         content_type: str,
         file_size: int,
         user: User,
     ) -> Document:
         """创建文档记录."""
-        # 生成文件hash
-        file_hash = hashlib.sha256(content.encode()).hexdigest()
+        # 生成文件hash - 处理content可能为None的情况
+        if content is not None:
+            file_hash = hashlib.sha256(content.encode()).hexdigest()
+        else:
+            # 对于二进制文件或无内容的文件，使用文件名和大小生成hash
+            hash_source = f"{filename}_{file_size}_{content_type}"
+            file_hash = hashlib.sha256(hash_source.encode()).hexdigest()
 
         # 检查文档是否已存在
         existing = await crud.crud_document.get_by_hash(
@@ -58,7 +65,7 @@ class DocumentService:
             file_path=f"spaces/{space_id}/documents/{file_hash}",
             file_hash=file_hash,
             original_filename=filename,
-            content=content[:1000],  # 存储前1000字符作为预览
+            content=content[:1000] if content is not None else "",  # 存储前1000字符作为预览，若为None则存储空字符串
             processing_status="completed",
             extraction_status="completed",
             embedding_status="pending",
@@ -184,8 +191,14 @@ class DocumentService:
             # 生成文件名
             filename = f"web_{hashlib.md5(url.encode()).hexdigest()[:8]}.html"
 
-            # 生成文件hash
-            file_hash = hashlib.sha256(content.encode()).hexdigest()
+            # 生成文件hash - 处理content可能为None的情况
+            if content is not None:
+                file_hash = hashlib.sha256(content.encode()).hexdigest()
+            else:
+                # 如果网页内容为空，使用URL和时间戳生成hash
+                hash_source = f"{url}_{datetime.now().isoformat()}"
+                file_hash = hashlib.sha256(hash_source.encode()).hexdigest()
+                self.logger.warning(f"Web content is None for {url}, using fallback hash")
             file_path = f"spaces/{space_id}/web/{file_hash}"
 
             # 准备元数据
@@ -367,13 +380,13 @@ class DocumentService:
         file_path: Path,
         user: User,
         title: str | None = None,
+        original_filename: str | None = None,
     ) -> Document:
         """从文件创建文档记录，包含内容提取."""
         try:
             # 获取文件信息
             file_ext = file_path.suffix.lower()
             file_size = file_path.stat().st_size
-            filename = file_path.name
 
             # 使用增强的内容提取
             extraction_result = await self.content_service.extract_content_enhanced(file_path, file_ext)
@@ -387,8 +400,14 @@ class DocumentService:
             metadata["has_images"] = extraction_result["has_images"]
             metadata["has_formulas"] = extraction_result["has_formulas"]
 
-            # 生成文件hash
-            file_hash = hashlib.sha256(content.encode()).hexdigest()
+            # 生成文件hash - 处理content可能为None的情况
+            if content is not None:
+                file_hash = hashlib.sha256(content.encode()).hexdigest()
+            else:
+                # 如果内容提取失败，使用文件信息生成hash
+                hash_source = f"{original_filename or title or file_path.name}_{file_size}_{file_ext}"
+                file_hash = hashlib.sha256(hash_source.encode()).hexdigest()
+                self.logger.warning(f"Content extraction returned None for {original_filename or title or file_path.name}, using fallback hash")
 
             # 检查文档是否已存在
             existing = await crud.crud_document.get_by_hash(
@@ -397,9 +416,12 @@ class DocumentService:
             if existing:
                 return existing
 
+            # 统一使用original_filename
+            final_filename = original_filename or title or file_path.name
+            
             # 创建文档schema
             document_in = DocumentCreate(
-                filename=filename,
+                filename=final_filename,  # 使用原始文件名
                 content_type=self._get_content_type(file_ext),
                 size=file_size,
                 space_id=space_id,
@@ -413,8 +435,8 @@ class DocumentService:
                 user_id=user.id,
                 file_path=f"spaces/{space_id}/documents/{file_hash}",
                 file_hash=file_hash,
-                original_filename=filename,
-                title=title or metadata.get("title", filename),
+                original_filename=final_filename,  # 使用正确的原始文件名
+                title=title or metadata.get("title", final_filename),
                 content=content[:1000],  # 存储前1000字符作为预览
                 processing_status="completed",
                 extraction_status="completed",

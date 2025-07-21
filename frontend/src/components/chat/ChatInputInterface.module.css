@@ -161,4 +161,128 @@
   color: #2e7d32; /* 绿色文字 */
 }
 
+/* 添加流式输出相关的样式 */
+
+/* 流式输出指示器 */
+.streamingIndicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  opacity: 0.7;
+  font-size: 0.85em;
+  color: #666;
+}
+
+.streamingText {
+  margin-right: 8px;
+  font-style: italic;
+}
+
+.streamingDots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.streamingDots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background-color: #666;
+  border-radius: 50%;
+  animation: streamingPulse 1.5s infinite ease-in-out;
+}
+
+.streamingDots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.streamingDots span:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.streamingDots span:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes streamingPulse {
+  0%, 70%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  35% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+/* 流式输出光标 - 简化样式 */
+.streamingCursor {
+  display: inline-block;
+  color: #666;
+  font-weight: normal;
+  animation: blink 1s infinite;
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* 流式消息的特殊样式 - 简化版本 */
+.streamingMessage {
+  position: relative;
+  /* 移除边框和背景色，保持简洁 */
+}
+
+/* 移除"正在输入"提示，避免视觉干扰 */
+
+/* 错误状态样式 */
+.errorMessage {
+  border-left: 3px solid #ff4444;
+  background-color: rgba(255, 68, 68, 0.05);
+}
+
+.errorIndicator {
+  color: #ff4444;
+  font-size: 0.9em;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background-color: #ffebee;
+  border-radius: 4px;
+  border-left: 3px solid #ff4444;
+  display: inline-block;
+}
+
+/* 完成状态的淡入效果 */
+.completedMessage {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .streamingIndicator {
+    font-size: 0.8em;
+  }
+  
+  .streamingDots span {
+    width: 4px;
+    height: 4px;
+  }
+}
+
 /* 聊天输入框操作区域 */

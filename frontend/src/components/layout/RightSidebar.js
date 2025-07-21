@@ -7,7 +7,8 @@ import { useSidebar } from '../../contexts/SidebarContext';
 import { useProjects } from '../../contexts/ProjectContext';
 import { useAgents } from '../../contexts/AgentContext'; // 确保路径正确
 import { useChat } from '../../contexts/ChatContext'; // 新增：导入ChatContext
-import apiService from '../../services/apiService'; // 添加apiService导入
+import apiService from '../../services/apiService';
+// 移除复杂的文件修复工具，使用简化的ChatContext API
 import {
   FiFileText, FiEdit3, FiSearch, FiFilter, FiPlus, FiMessageSquare,
   FiChevronsRight, FiChevronsLeft, FiDownload, FiTrash2, FiX,
@@ -18,6 +19,8 @@ import ContextMenu from '../ui/ContextMenu';
 import FilterPopup from '../ui/FilterPopup';
 import ChatInputInterface from '../chat/ChatInputInterface'; // <<< 导入 ChatInputInterface
 import MessageFileAttachments from '../chat/MessageFileAttachments'; // <<< 导入 MessageFileAttachments
+import MarkdownRenderer from '../chat/MarkdownRenderer';
+import ErrorBoundary from '../common/ErrorBoundary';
 
 // --- 辅助函数：格式化文件大小 ---
 const formatFileSize = (bytes) => {
@@ -99,7 +102,9 @@ const simplifyFileForCallback = f => ({
   preview: f.preview, 
   uploadedAt: f.uploadedAt,
   isAiGenerated: f.isAiGenerated,
-  aiAgent: f.aiAgent
+  aiAgent: f.aiAgent,
+  rawFile: f.rawFile,
+  url: f.url
 });
 const simplifyNoteForCallback = n => ({ 
   id: n.id, 
@@ -139,7 +144,15 @@ const FilesListView = ({ files: initialFiles }) => {
 
   useEffect(() => {
     let processedFiles = initialFiles || [];
-    console.log("FilesListView: initialFiles prop updated. Count:", processedFiles.length); // <<< 添加日志
+    console.log("FilesListView: initialFiles prop updated. Count:", processedFiles.length); 
+    console.log("FilesListView: File data integrity check:", processedFiles.map(f => ({
+      name: f.name,
+      id: f.id,
+      hasRawFile: !!f.rawFile,
+      hasUrl: !!f.url,
+      keys: Object.keys(f)
+    })));
+    
     const hasActiveFilterSelections = Object.values(activeFilters).some(arr => arr && arr.length > 0);
     if (hasActiveFilterSelections) {
       processedFiles = processedFiles.filter(file => {
@@ -158,6 +171,8 @@ const FilesListView = ({ files: initialFiles }) => {
       const lowerCaseQuery = searchQuery.toLowerCase();
       processedFiles = processedFiles.filter(file => file.name.toLowerCase().includes(lowerCaseQuery));
     }
+    
+    console.log("FilesListView: Setting displayedItems with processed files:", processedFiles.length);
     setDisplayedItems(processedFiles);
   }, [initialFiles, searchQuery, activeFilters]);
 
@@ -192,20 +207,223 @@ const FilesListView = ({ files: initialFiles }) => {
         alert(`The following file(s) already exist and were not added:\n- ${duplicateFileNames.join('\n- ')}`);
       }
 
-      // 只处理不重复的新文件
+            // 只处理不重复的新文件
       if (newUniqueFiles.length > 0) {
-        const newFileObjects = newUniqueFiles.map(f => ({
-          id: `local-${f.name}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          name: f.name, size: f.size, type: f.type, rawFile: f,
-          preview: `Type: ${f.type || 'unknown'}, Size: ${formatFileSize(f.size)}`,
-          uploadedAt: new Date().toISOString(),
-        }));
-        const updatedFullFileList = [...(initialFiles || []), ...newFileObjects];
-        if (typeof onUpdateFilesCallback === 'function') { // onUpdateFilesCallback 是根据视图类型选择的
-          onUpdateFilesCallback(updatedFullFileList.map(simplifyFileForCallback));
-        } else {
-          console.warn(`FilesListView: onUpdateFilesCallback not available for view type "${rightSidebarView?.type}".`);
-        }
+        // 🚀 完全重写的文件上传逻辑，适配后端API
+        const uploadFilesToBackend = async () => {
+          const newFileObjects = [];
+          
+          for (const file of newUniqueFiles) {
+            try {
+              console.log(`📤 [RightSidebar] Starting upload: ${file.name}`);
+              
+              // 显示上传进度提示
+              const uploadingIndicator = document.createElement('div');
+              uploadingIndicator.className = 'uploading-indicator';
+              uploadingIndicator.textContent = `正在上传 ${file.name}...`;
+              uploadingIndicator.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 10000;
+                background: #007bff; color: white; padding: 10px 15px;
+                border-radius: 5px; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+              `;
+              document.body.appendChild(uploadingIndicator);
+              
+              // 步骤1：检查认证状态
+              const token = localStorage.getItem('access_token');
+              if (!token) {
+                throw new Error('用户未登录，无法上传文件。请先登录。');
+              }
+              console.log('✅ [RightSidebar] User authenticated');
+              
+              // 步骤2：获取或创建空间
+              let spaceId = null;
+              const API_BASE = 'http://43.160.192.140:8000/api/v1';
+              
+              if (rightSidebarView?.type === 'PROJECT_DETAILS') {
+                spaceId = rightSidebarView.data?.projectId;
+                console.log(`📁 [RightSidebar] Using project space: ${spaceId}`);
+              } else {
+                console.log('💬 [RightSidebar] Chat context - need to find/create space');
+                
+                try {
+                  // 尝试获取现有空间
+                  console.log('🔍 [RightSidebar] Fetching spaces list...');
+                  const spacesResponse = await fetch(`${API_BASE}/spaces/?limit=10`, {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  
+                  if (spacesResponse.ok) {
+                    const spacesData = await spacesResponse.json();
+                    console.log('📋 [RightSidebar] Spaces response:', spacesData);
+                    
+                    const spacesList = spacesData.spaces || [];
+                    if (spacesList.length > 0) {
+                      spaceId = spacesList[0].id;
+                      console.log(`📁 [RightSidebar] Using existing space: ${spacesList[0].name} (ID: ${spaceId})`);
+                    }
+                  } else {
+                    console.warn(`⚠️ [RightSidebar] Failed to get spaces: ${spacesResponse.status}`);
+                  }
+                } catch (getSpacesError) {
+                  console.warn('⚠️ [RightSidebar] Error getting spaces:', getSpacesError.message);
+                }
+                
+                // 如果没有空间，创建一个新的
+                if (!spaceId) {
+                  console.log('🆕 [RightSidebar] Creating new space...');
+                  const createSpaceResponse = await fetch(`${API_BASE}/spaces/`, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      name: `Files_${Date.now()}`,
+                      description: 'Created for file uploads',
+                      is_public: false,
+                      tags: ['files']
+                    })
+                  });
+                  
+                  if (createSpaceResponse.ok) {
+                    const newSpace = await createSpaceResponse.json();
+                    spaceId = newSpace.id;
+                    console.log(`✅ [RightSidebar] New space created: ${newSpace.name} (ID: ${spaceId})`);
+                  } else {
+                    const errorData = await createSpaceResponse.json().catch(() => ({}));
+                    throw new Error(`Failed to create space: ${createSpaceResponse.status} - ${errorData.detail || 'Unknown error'}`);
+                  }
+                }
+              }
+              
+              if (!spaceId) {
+                throw new Error('无法获取或创建上传空间');
+              }
+              
+              // 步骤3：上传文件到后端
+              console.log(`📤 [RightSidebar] Uploading to space ${spaceId}...`);
+              const formData = new FormData();
+              formData.append('space_id', spaceId.toString());
+              formData.append('file', file);
+              formData.append('title', file.name);
+              formData.append('tags', 'sidebar-upload');
+              
+              const uploadResponse = await fetch(`${API_BASE}/documents/upload`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                  // 注意：不要设置Content-Type，让浏览器自动设置multipart/form-data
+                },
+                body: formData
+              });
+              
+              if (!uploadResponse.ok) {
+                const errorData = await uploadResponse.json().catch(() => ({ detail: uploadResponse.statusText }));
+                throw new Error(`Upload failed: ${uploadResponse.status} - ${errorData.detail || 'Unknown error'}`);
+              }
+              
+              const uploadedDoc = await uploadResponse.json();
+              console.log(`✅ [RightSidebar] Upload successful:`, uploadedDoc);
+              
+              // 更新上传提示
+              const indicator = document.querySelector('.uploading-indicator');
+              if (indicator) {
+                indicator.style.background = '#10b981';
+                indicator.textContent = `✅ ${file.name} 上传成功`;
+                setTimeout(() => indicator.remove(), 2000);
+              }
+              
+              // 创建正确的文件对象，匹配后端响应格式
+              const fileObject = {
+                id: uploadedDoc.id.toString(),
+                documentId: uploadedDoc.id,
+                name: uploadedDoc.original_filename || uploadedDoc.title || uploadedDoc.filename || file.name, // 优先用原始文件名
+                size: uploadedDoc.file_size || file.size,
+                type: uploadedDoc.content_type || file.type,
+                rawFile: file, // 保留以备需要
+                preview: `Type: ${uploadedDoc.content_type || file.type}, Size: ${formatFileSize(uploadedDoc.file_size || file.size)}`,
+                uploadedAt: uploadedDoc.created_at || new Date().toISOString(),
+                url: `/documents/${uploadedDoc.id}`,
+                isAiGenerated: false,
+                aiAgent: null,
+                uploadSuccess: true
+              };
+              
+              newFileObjects.push(fileObject);
+              console.log(`🎉 [RightSidebar] File object created:`, fileObject);
+              
+            } catch (error) {
+              console.error(`❌ [RightSidebar] Upload failed for ${file.name}:`, error);
+              
+              // 更新上传提示为错误状态
+              const indicator = document.querySelector('.uploading-indicator');
+              if (indicator) {
+                indicator.style.background = '#ef4444';
+                indicator.textContent = `❌ ${file.name} 上传失败`;
+                setTimeout(() => indicator.remove(), 3000);
+              }
+              
+              // 创建失败的文件对象
+              const failedFileObject = {
+                id: `local-${file.name}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                rawFile: file,
+                preview: `❌ Upload failed: ${error.message}`,
+                uploadedAt: new Date().toISOString(),
+                uploadFailed: true,
+                uploadError: error.message
+              };
+              
+              newFileObjects.push(failedFileObject);
+              
+              // 用户提示
+              setTimeout(() => {
+                alert(`文件 "${file.name}" 上传失败：\n\n${error.message}\n\n请检查网络连接和登录状态后重试。`);
+              }, 100);
+            }
+          }
+          
+          // 更新文件列表
+          if (newFileObjects.length > 0) {
+            const updatedFullFileList = [...(initialFiles || []), ...newFileObjects];
+            
+            console.log('📊 [RightSidebar] Upload summary:', {
+              total: newFileObjects.length,
+              successful: newFileObjects.filter(f => f.uploadSuccess).length,
+              failed: newFileObjects.filter(f => f.uploadFailed).length,
+              files: newFileObjects.map(f => ({
+                name: f.name,
+                id: f.id,
+                documentId: f.documentId,
+                success: f.uploadSuccess,
+                failed: f.uploadFailed
+              }))
+            });
+            
+            // 通过回调更新父组件状态
+            if (typeof onUpdateFilesCallback === 'function') { 
+              onUpdateFilesCallback(updatedFullFileList.map(simplifyFileForCallback));
+            } else {
+              console.warn(`FilesListView: onUpdateFilesCallback not available for view type "${rightSidebarView?.type}".`);
+            }
+            
+            // 更新本地显示列表
+            setDisplayedItems(prevDisplayed => {
+              const existingFiltered = prevDisplayed.filter(existing => 
+                !newFileObjects.some(newFile => newFile.id === existing.id)
+              );
+              return [...existingFiltered, ...newFileObjects];
+            });
+          }
+        };
+        
+        // 执行上传
+        uploadFilesToBackend();
       }
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -231,9 +449,29 @@ const FilesListView = ({ files: initialFiles }) => {
 
   const handleConfirmSelection = () => {
     const selectedFiles = displayedItems.filter(item => selectedItems.has(item.id));
-    // 使用ChatContext添加文件到聊天框
+    
+    console.log('🎯 RightSidebar: handleConfirmSelection called');
+    console.log('📁 Selected files count:', selectedFiles.length);
+    console.log('📋 Selected files:', selectedFiles.map(f => ({
+      name: f.name,
+      id: f.id,
+      size: f.size,
+      type: f.type,
+      hasRawFile: !!f.rawFile,
+      hasUrl: !!f.url
+    })));
+
+    if (selectedFiles.length === 0) {
+      console.warn('🚫 RightSidebar: No files selected');
+      alert('请先选择要添加的文件');
+      return;
+    }
+
+    // 🆕 直接使用重新构建的ChatContext API，无需复杂的修复逻辑
+    console.log('✨ RightSidebar: Calling ChatContext.addFilesToChat directly');
     addFilesToChat(selectedFiles);
-    console.log('Selected files added to chat:', selectedFiles);
+    
+    console.log('✅ RightSidebar: Files sent to ChatContext');
     
     // 退出选择模式
     setIsSelectionMode(false);
@@ -793,7 +1031,26 @@ const FileSpecificChatView = ({ data }) => {
             <div key={msg.id || msg.timestamp} className={`${styles.sidebarChatMessage} ${styles[msg.sender]}`}>
               {/* 2. 内层 div 作为气泡体，应用 .messageBubbleContent */}
               <div className={styles.messageBubbleContent}>
-                <p>{msg.text}</p>
+                {msg.sender === 'ai' ? (
+                  <>
+                    {msg.streaming && !msg.text ? (
+                      <div className={styles.thinkingIndicator}>
+                        <span>正在思考</span>
+                        <span className={styles.streamingCursor}>|</span>
+                      </div>
+                    ) : (
+                      <ErrorBoundary
+                        fallback={<p>{msg.text}</p>}
+                      >
+                        <MarkdownRenderer>
+                          {msg.text}
+                        </MarkdownRenderer>
+                      </ErrorBoundary>
+                    )}
+                  </>
+                ) : (
+                  <p>{msg.text}</p>
+                )}
                 {/* 消息内的文件附件（如果需要） */}
                 {((msg.files && msg.files.length > 0) || (msg.notes && msg.notes.length > 0)) && (
                   <MessageFileAttachments files={msg.files || []} notes={msg.notes || []} isAiMessage={msg.sender === 'ai'} />

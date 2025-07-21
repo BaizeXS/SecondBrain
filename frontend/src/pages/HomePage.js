@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './HomePage.module.css';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useProjects } from '../contexts/ProjectContext';
+import { useChat } from '../contexts/ChatContext'; // 新增：导入useChat
 import {
   FiPaperclip, FiSend, FiDownload, FiSave,
   FiMessageSquare, FiBriefcase, FiEdit2, FiTerminal,
@@ -13,8 +14,13 @@ import MessageFileAttachments from '../components/chat/MessageFileAttachments';
 import SaveProjectModal from '../components/modals/SaveProjectModal';
 import ChatInputInterface from '../components/chat/ChatInputInterface';
 import { useNavigate } from 'react-router-dom';
+import MarkdownRenderer from '../components/chat/MarkdownRenderer';
+import MessageActions from '../components/chat/MessageActions';
+import MessageTimestamp from '../components/chat/MessageTimestamp';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import { useAgents, getIconComponent } from '../contexts/AgentContext'; // <<< 导入 useAgents 和 getIconComponent
 import apiService from '../services/apiService';
+
 
 
 const formatFileSize = (bytes) => {
@@ -35,7 +41,9 @@ const simplifyFileForContext = f => ({
   preview: f.preview, 
   uploadedAt: f.uploadedAt,
   isAiGenerated: f.isAiGenerated,
-  aiAgent: f.aiAgent
+  aiAgent: f.aiAgent,
+  rawFile: f.rawFile,
+  url: f.url
 });
 const simplifyNoteForContext = n => ({ 
   id: n.id, 
@@ -55,6 +63,7 @@ const HomePage = () => {
   const [activeAgentId, setActiveAgentId] = useState(null); // <<< 现在用 ID 来跟踪激活的 agent
   const { openRightSidebarWithView, isRightSidebarOpen, rightSidebarView, closeRightSidebar } = useSidebar();
   const { addProject } = useProjects();
+  const { getDocumentIdsForAPI, getFilesNeedingUpload, clearChatSelections } = useChat(); // 新增：使用重新构建的ChatContext API
   const navigate = useNavigate();
 
   const [message, setMessage] = useState(''); // This is managed by ChatInputInterface now if passed as prop
@@ -73,7 +82,7 @@ const HomePage = () => {
   const [isDeepSearchMode, setIsDeepSearchMode] = useState(false);
   const [availableModels, setAvailableModels] = useState([]);
 
-  // 添加模拟流式响应测试
+  // 默认启用真实流式输出
   const [useMockStreaming, setUseMockStreaming] = useState(false);
 
   useEffect(() => {
@@ -262,7 +271,13 @@ const HomePage = () => {
     setCurrentChatFiles(prevFullFiles => {
       return updatedSimplifiedFiles.map(simpleFile => {
         const existingFile = prevFullFiles.find(f => f.id === simpleFile.id);
-        return { ...(existingFile || { rawFile: null }), ...simpleFile, rawFile: existingFile ? existingFile.rawFile : null };
+        // 🔧 修复：保留简化文件中的rawFile，不要覆盖为null
+        return { 
+          ...(existingFile || {}), 
+          ...simpleFile,
+          // 优先使用简化文件中的rawFile，如果没有则使用现有的
+          rawFile: simpleFile.rawFile || (existingFile ? existingFile.rawFile : null)
+        };
       });
     });
   }, []);
@@ -281,19 +296,55 @@ const HomePage = () => {
       } else {
         const currentSidebarFiles = rightSidebarView.data?.files || [];
         const currentSidebarNotes = rightSidebarView.data?.notes || [];
-        if (JSON.stringify(currentSidebarFiles) !== JSON.stringify(sidebarDataPayload.files) ||
-          JSON.stringify(currentSidebarNotes) !== JSON.stringify(sidebarDataPayload.notes)) {
+        
+        // 检查回调函数是否是占位符函数（通过函数名或特征来识别）
+        const hasPlaceholderCallbacks = 
+          !rightSidebarView.data?.onUpdateChatFiles || 
+          !rightSidebarView.data?.onUpdateChatNotes ||
+          rightSidebarView.data.onUpdateChatFiles.toString().includes('not fully initialized') ||
+          rightSidebarView.data.onUpdateChatNotes.toString().includes('not fully initialized');
+        
+        if (hasPlaceholderCallbacks || 
+            JSON.stringify(currentSidebarFiles) !== JSON.stringify(sidebarDataPayload.files) ||
+            JSON.stringify(currentSidebarNotes) !== JSON.stringify(sidebarDataPayload.notes)) {
           needsUpdate = true;
         }
       }
       if (needsUpdate) {
+        console.log('HomePage: Updating RightSidebar with correct callbacks');
         openRightSidebarWithView({
           type: 'CHAT_CONTEXT_INFO', data: sidebarDataPayload,
           activeTab: rightSidebarView?.activeTab // 保持当前tab，不自动切换
         });
       }
     }
-  }, [isRightSidebarOpen, rightSidebarView?.type, rightSidebarView?.activeTab, rightSidebarView?.data, currentChatFiles, currentChatNotes, openRightSidebarWithView, handleUpdateChatNotesFromSidebar, handleUpdateChatFilesFromSidebar]);
+  }, [isRightSidebarOpen, rightSidebarView?.type, rightSidebarView?.activeTab, currentChatFiles, currentChatNotes, openRightSidebarWithView, handleUpdateChatNotesFromSidebar, handleUpdateChatFilesFromSidebar]);
+
+  // 专门处理侧边栏打开时的回调函数初始化
+  useEffect(() => {
+    if (isRightSidebarOpen && rightSidebarView?.type === 'CHAT_CONTEXT_INFO') {
+      // 检查是否有占位符回调函数，如果有则立即替换
+      const hasPlaceholderCallbacks = 
+        !rightSidebarView.data?.onUpdateChatFiles || 
+        !rightSidebarView.data?.onUpdateChatNotes ||
+        rightSidebarView.data.onUpdateChatFiles.toString().includes('not fully initialized') ||
+        rightSidebarView.data.onUpdateChatNotes.toString().includes('not fully initialized');
+      
+      if (hasPlaceholderCallbacks) {
+        console.log('HomePage: Immediately replacing placeholder callbacks on sidebar open');
+        openRightSidebarWithView({
+          type: 'CHAT_CONTEXT_INFO',
+          data: {
+            files: currentChatFiles.map(simplifyFileForContext),
+            notes: currentChatNotes.map(simplifyNoteForContext),
+            onUpdateChatNotes: handleUpdateChatNotesFromSidebar,
+            onUpdateChatFiles: handleUpdateChatFilesFromSidebar,
+          },
+          activeTab: rightSidebarView?.activeTab
+        });
+      }
+    }
+  }, [isRightSidebarOpen, rightSidebarView?.type, handleUpdateChatNotesFromSidebar, handleUpdateChatFilesFromSidebar, openRightSidebarWithView]);
 
   const handleAiResponseWithFiles = (aiGeneratedFiles) => {
     const newFilesToAdd = aiGeneratedFiles.map(f => ({ ...f, rawFile: null, uploadedAt: f.uploadedAt || new Date().toISOString() }));
@@ -301,32 +352,43 @@ const HomePage = () => {
   };
 
   // 辅助函数：上传文件到后端
-  const uploadFileToBackend = async (file, spaceId = null) => {
+  const uploadFileToBackend = async (file, spaceId) => {
     try {
-      // 如果没有 spaceId，创建一个临时空间或使用默认空间
-      let targetSpaceId = spaceId;
-      if (!targetSpaceId) {
-        // 创建一个临时空间用于存储聊天文件
-        const tempSpace = await apiService.space.createSpace({
-          name: `Chat Files - ${new Date().toLocaleDateString()}`,
-          description: 'Temporary space for chat file uploads',
-          is_public: false,
-          tags: ['chat', 'temp']
-        });
-        targetSpaceId = tempSpace.id;
+      console.log('📤 Starting file upload...');
+      console.log('📁 File:', file.name, 'Size:', file.size, 'Type:', file.type);
+      console.log('🏠 Target space ID:', spaceId);
+      
+      // 验证参数
+      if (!spaceId) {
+        throw new Error('空间ID不能为空');
+      }
+      
+      if (!file) {
+        throw new Error('文件不能为空');
+      }
+      
+      // 验证空间是否存在
+      try {
+        const space = await apiService.space.getSpace(spaceId);
+        console.log('✅ Space verified:', space.name, '(ID:', space.id, ')');
+      } catch (spaceError) {
+        console.error('❌ Space verification failed:', spaceError);
+        throw new Error(`无法访问指定空间 (ID: ${spaceId}): ${spaceError.message}`);
       }
       
       // 上传文件
+      console.log('⬆️ Uploading file to space:', spaceId);
       const uploadedDoc = await apiService.document.uploadDocument(
-        targetSpaceId,
+        spaceId,
         file,
         file.name,
         ['chat-attachment']
       );
       
+      console.log('✅ File uploaded successfully:', uploadedDoc);
       return uploadedDoc;
     } catch (error) {
-      console.error('File upload failed:', error);
+      console.error('❌ File upload failed:', error);
       throw error;
     }
   };
@@ -494,34 +556,191 @@ const HomePage = () => {
         console.log("Using backend streaming API");
         
         let currentConversationId = conversationId;
+        let conversationSpaceId = null;
+        
         if (!currentConversationId) {
+          // 如果有文件要上传，寻找或创建合适的空间
+          if (filesAttachedToMessage.length > 0) {
+            try {
+              console.log('🔍 Looking for suitable space for chat with files');
+              
+              // 首先尝试获取现有空间列表
+              const spaces = await apiService.space.getSpaces({ limit: 100 });
+              let targetSpace = null;
+              
+              // 寻找名为 "Chat Files" 的现有空间
+              targetSpace = spaces.spaces?.find(space => 
+                space.name.includes('Chat') || 
+                space.name.includes('Files') || 
+                space.tags?.includes('chat') || 
+                space.tags?.includes('files')
+              );
+              
+              // 如果没找到合适的空间，尝试使用第一个可用空间
+              if (!targetSpace && spaces.spaces?.length > 0) {
+                targetSpace = spaces.spaces[0];
+                console.log('📁 Using first available space:', targetSpace.name);
+              }
+              
+              // 如果还是没有空间，尝试创建一个
+              if (!targetSpace) {
+                console.log('🆕 Creating new space for chat files');
+                const timestamp = Date.now();
+                const uniqueName = `ChatFiles_${timestamp}`;
+                
+                targetSpace = await apiService.space.createSpace({
+                  name: uniqueName,
+                  description: 'Space for chat with file attachments',
+                  is_public: false,
+                  tags: ['chat', 'files']
+                });
+                console.log('✅ New space created:', targetSpace.name);
+              }
+              
+              if (targetSpace) {
+                conversationSpaceId = targetSpace.id;
+                console.log('✅ Using space for files:', targetSpace.name, '(ID:', targetSpace.id, ')');
+              }
+              
+            } catch (spaceError) {
+              console.error('❌ Failed to find/create space:', spaceError);
+              
+              // 如果是空间数量限制错误，提示用户
+              if (spaceError.message.includes('空间数量上限') || spaceError.message.includes('已达到')) {
+                alert('⚠️ 空间数量已达上限，将尝试使用现有空间上传文件');
+                
+                // 尝试获取任意一个现有空间
+                try {
+                  const existingSpaces = await apiService.space.getSpaces({ limit: 1 });
+                  if (existingSpaces.spaces?.length > 0) {
+                    conversationSpaceId = existingSpaces.spaces[0].id;
+                    console.log('🔄 Using existing space as fallback:', existingSpaces.spaces[0].name);
+                  }
+                } catch (fallbackError) {
+                  console.error('❌ Fallback space lookup failed:', fallbackError);
+                }
+              }
+              
+              // 如果所有尝试都失败，继续但不关联空间
+              if (!conversationSpaceId) {
+                console.log('⚠️ Proceeding without space association');
+              }
+            }
+          }
+          
           const conversationData = {
             title: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : ''),
-            mode: 'chat'
+            mode: 'chat',
+            ...(conversationSpaceId && { space_id: conversationSpaceId })
           };
           
+          console.log('Creating conversation with data:', conversationData);
           const newConversation = await apiService.chat.createConversation(conversationData);
           currentConversationId = newConversation.id;
+          conversationSpaceId = newConversation.space_id || conversationSpaceId;
           setConversationId(currentConversationId);
+          console.log('Conversation created:', currentConversationId, 'Space:', conversationSpaceId);
+        } else {
+          // 获取现有对话的空间ID
+          try {
+            const existingConversation = await apiService.chat.getConversation(currentConversationId);
+            conversationSpaceId = existingConversation.space_id;
+            console.log('📋 Using existing conversation space:', conversationSpaceId);
+            
+            // 如果现有对话没有关联空间，但需要上传文件，尝试找到合适的空间
+            if (!conversationSpaceId && filesAttachedToMessage.length > 0) {
+              console.log('🔍 Existing conversation has no space, looking for suitable space for files');
+              
+              try {
+                const spaces = await apiService.space.getSpaces({ limit: 100 });
+                let targetSpace = null;
+                
+                // 寻找合适的空间
+                targetSpace = spaces.spaces?.find(space => 
+                  space.name.includes('Chat') || 
+                  space.name.includes('Files') || 
+                  space.tags?.includes('chat') || 
+                  space.tags?.includes('files')
+                );
+                
+                // 如果没找到，使用第一个可用空间
+                if (!targetSpace && spaces.spaces?.length > 0) {
+                  targetSpace = spaces.spaces[0];
+                  console.log('📁 Using first available space for existing conversation:', targetSpace.name);
+                }
+                
+                if (targetSpace) {
+                  conversationSpaceId = targetSpace.id;
+                  console.log('✅ Found space for existing conversation files:', targetSpace.name, '(ID:', targetSpace.id, ')');
+                }
+              } catch (spaceError) {
+                console.error('❌ Failed to find space for existing conversation:', spaceError);
+              }
+            }
+          } catch (error) {
+            console.warn('Could not get conversation details:', error);
+          }
         }
         
+        // 如果仍然没有空间ID且有文件要上传，最后的备用方案
+        if (!conversationSpaceId && filesAttachedToMessage.length > 0) {
+          console.log('⚠️ No space available for file upload, files will be skipped');
+          alert('⚠️ 无法找到合适的空间存储文件，文件上传将被跳过。\n请检查您的空间列表或删除一些不需要的空间。');
+          // 清空文件列表，避免上传失败
+          filesAttachedToMessage.length = 0;
+        }
+        
+        // 🆕 使用重新构建的ChatContext API
+        console.log('🚀 HomePage: Using new ChatContext API for document handling');
+        const documentIds = getDocumentIdsForAPI();
+        const filesToUpload = getFilesNeedingUpload();
+        
+        console.log('📋 HomePage: Document IDs from ChatContext:', documentIds);
+        console.log('📤 HomePage: Files needing upload:', filesToUpload.length);
+        
         // 处理文件上传
-        const documentIds = [];
-        if (filesAttachedToMessage.length > 0) {
-          for (const file of filesAttachedToMessage) {
-            if (file.id && !isNaN(parseInt(file.id))) {
-              documentIds.push(parseInt(file.id));
-            } else if (file.rawFile) {
-              try {
-                const uploadedDoc = await uploadFileToBackend(file.rawFile, currentConversationId);
-                if (uploadedDoc && uploadedDoc.id) {
-                  documentIds.push(uploadedDoc.id);
-                  file.id = uploadedDoc.id.toString();
-                  file.url = `/documents/${uploadedDoc.id}`;
-                }
-              } catch (uploadError) {
-                console.error('Failed to upload file:', uploadError);
+        if (filesToUpload.length > 0) {
+          console.log('📤 HomePage: Uploading files...');
+          for (const file of filesToUpload) {
+            try {
+              console.log(`📤 Uploading file: ${file.name}`);
+              const uploadedDoc = await uploadFileToBackend(file.rawFile, conversationSpaceId);
+              if (uploadedDoc && uploadedDoc.id) {
+                documentIds.push(uploadedDoc.id);
+                console.log(`✅ File uploaded successfully, document ID: ${uploadedDoc.id}`);
               }
+            } catch (uploadError) {
+              console.error(`❌ Failed to upload file ${file.name}:`, uploadError);
+              alert(`文件 "${file.name}" 上传失败: ${uploadError.message}`);
+            }
+          }
+        }
+        
+        console.log('🎯 HomePage: Final document IDs for AI:', documentIds);
+        
+        // 📋 详细调试信息
+        console.log('=== 文件上传到AI读取流程调试 ===');
+        console.log('📊 流程状态汇总:');
+        console.log('  📁 空间ID:', conversationSpaceId);
+        console.log('  💬 对话ID:', currentConversationId);
+        console.log('  📄 文件数量:', filesAttachedToMessage.length);
+        console.log('  📋 文档ID列表:', documentIds);
+        console.log('  🎯 是否有文档传递给AI:', documentIds.length > 0);
+        
+        // 验证每个上传的文档
+        if (documentIds.length > 0) {
+          console.log('📖 验证上传的文档:');
+          for (const docId of documentIds) {
+            try {
+              const docDetails = await apiService.document.getDocument(docId);
+              console.log(`  📄 文档 ${docId}:`, {
+                filename: docDetails.filename,
+                hasContent: !!docDetails.content,
+                contentLength: docDetails.content ? docDetails.content.length : 0,
+                contentPreview: docDetails.content ? docDetails.content.substring(0, 100) + '...' : 'EMPTY'
+              });
+            } catch (error) {
+              console.error(`  ❌ 无法获取文档 ${docId} 详情:`, error);
             }
           }
         }
@@ -541,9 +760,15 @@ const HomePage = () => {
           model: selectedModel,
           messages: messages,
           temperature: 0.7,
+          stream: true, // 确保启用流式输出
           conversation_id: currentConversationId,
           ...(documentIds.length > 0 && { document_ids: documentIds })
         };
+        
+        console.log('📤 发送给AI的完整请求数据:', {
+          ...streamRequestData,
+          messages: streamRequestData.messages.map(m => ({ role: m.role, content: m.content.substring(0, 50) + '...' }))
+        });
         
         const streamResponse = await apiService.chat.createStreamingChatCompletion(streamRequestData);
         await streamingResponseHandler(streamResponse, aiMessageId);
@@ -635,9 +860,16 @@ const HomePage = () => {
 
   // 通用的流式响应处理器
   const streamingResponseHandler = async (streamResponse, aiMessageId) => {
-    console.log('Starting streaming response handler');
+    console.log('🚀 开始处理流式响应, AI消息ID:', aiMessageId);
+    console.log('📡 流式响应对象:', streamResponse);
     
     if (!streamResponse || !streamResponse.body) {
+      console.error('❌ 流式响应无效:', { 
+        hasResponse: !!streamResponse, 
+        hasBody: !!streamResponse?.body,
+        responseType: typeof streamResponse,
+        responseKeys: streamResponse ? Object.keys(streamResponse) : 'none'
+      });
       throw new Error('No response body for streaming');
     }
 
@@ -666,7 +898,8 @@ const HomePage = () => {
           const data = trimmedLine.slice(6).trim();
           
           if (data === '[DONE]') {
-            console.log('Received [DONE], finalizing stream');
+            console.log('✅ 收到[DONE]信号，完成流式响应。最终内容长度:', fullContent.length);
+            console.log('📝 最终内容预览:', fullContent.substring(0, 100) + '...');
             setChatHistory(prev => prev.map(msg => 
               msg.id === aiMessageId 
                 ? { ...msg, text: fullContent, streaming: false }
@@ -688,10 +921,21 @@ const HomePage = () => {
             
             if (content) {
               fullContent += content;
-              console.log('Received content chunk:', content, 'Total length:', fullContent.length);
+              console.log('📨 接收内容块:', {
+                chunk: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
+                chunkLength: content.length,
+                totalLength: fullContent.length,
+                aiMessageId
+              });
               
               // 实时更新AI消息 - 这是关键部分
               setChatHistory(prev => {
+                const messageFound = prev.find(msg => msg.id === aiMessageId);
+                if (!messageFound) {
+                  console.warn('⚠️ 未找到对应的AI消息ID:', aiMessageId);
+                  console.log('💬 当前聊天历史:', prev.map(m => ({ id: m.id, sender: m.sender, textLength: m.text?.length || 0 })));
+                }
+                
                 const newHistory = prev.map(msg => {
                   if (msg.id === aiMessageId) {
                     return { 
@@ -751,28 +995,68 @@ const HomePage = () => {
     } setIsSaveModalOpen(true);
   };
   const handleCloseSaveModal = () => setIsSaveModalOpen(false);
-  const actuallySaveProject = (projectNameFromModal) => {
-    const newProjectData = {
-      name: projectNameFromModal, description: "", chatHistory: [...chatHistory],
-      files: currentChatFiles.map(simplifyFileForContext), // Pass simplified
-      notes: currentChatNotes.map(simplifyNoteForContext), // Pass simplified
-      createdAt: new Date().toISOString(),
-    };
-    const savedProject = addProject(newProjectData);
-    if (savedProject && savedProject.id) {
-      alert(`Project "${savedProject.name}" saved!`); handleCloseSaveModal();
-      // 清空 HomePage 的状态
-      setChatHistory([]);
-      setCurrentChatFiles([]);
-      setCurrentChatNotes([]);
 
-      // **关键**：因为会话已经被永久保存，所以明确地从 localStorage 中移除临时会话
-      localStorage.removeItem('tempChatSession');
-      console.log("HomePage: Project saved, temporary session cleared from localStorage.");
+  // 消息操作处理函数
+  const handleCopyMessage = (message) => {
+    console.log('Message copied:', message.text.substring(0, 50) + '...');
+  };
 
-      // ... (更新 RightSidebar，导航到新项目)
-      navigate(`/neurocore/project/${savedProject.id}`);
-    } else { alert("Error saving project."); }
+  const handleRegenerateMessage = (message) => {
+    console.log('Regenerating message:', message.id);
+    // TODO: 实现重新生成功能
+    alert('重新生成功能将在后续版本中实现');
+  };
+
+  const handleMessageFeedback = (message, feedbackType) => {
+    console.log('Message feedback:', message.id, feedbackType);
+    // TODO: 实现反馈功能
+    alert(`感谢您的${feedbackType === 'like' ? '点赞' : '反馈'}！`);
+  };
+
+
+  const actuallySaveProject = async (projectNameFromModal) => {
+    try {
+      const newProjectData = {
+        name: projectNameFromModal, 
+        description: "", 
+        chatHistory: [...chatHistory],
+        files: currentChatFiles.map(simplifyFileForContext), // Pass simplified
+        notes: currentChatNotes.map(simplifyNoteForContext), // Pass simplified
+        createdAt: new Date().toISOString(),
+      };
+      
+      console.log("HomePage: Saving project with data:", newProjectData);
+      
+      const savedProject = await addProject(newProjectData);
+      
+      if (savedProject === null) {
+        // 用户取消了项目创建，不执行后续操作
+        handleCloseSaveModal();
+        return;
+      }
+      
+      if (savedProject && savedProject.id) {
+        alert(`Project "${savedProject.name}" saved!`); 
+        handleCloseSaveModal();
+        
+        // 清空 HomePage 的状态
+        setChatHistory([]);
+        setCurrentChatFiles([]);
+        setCurrentChatNotes([]);
+
+        // **关键**：因为会话已经被永久保存，所以明确地从 localStorage 中移除临时会话
+        localStorage.removeItem('tempChatSession');
+        console.log("HomePage: Project saved, temporary session cleared from localStorage.");
+
+        // ... (更新 RightSidebar，导航到新项目)
+        navigate(`/neurocore/project/${savedProject.id}`);
+      } else { 
+        throw new Error("Project creation returned invalid response");
+      }
+    } catch (error) {
+      console.error("HomePage: Error saving project:", error);
+      alert(`Error saving project: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const handleModelChange = (e) => setSelectedModel(e.target.value);
@@ -847,19 +1131,54 @@ const HomePage = () => {
                 {((entry.files && entry.files.length > 0) || (entry.notes && entry.notes.length > 0)) && (
                   <MessageFileAttachments files={entry.files || []} notes={entry.notes || []} isAiMessage={entry.sender === 'ai'} />
                 )}
-                <p>
-                  {entry.text}
-                  {/* 流式输出光标 */}
-                  {entry.streaming && (
-                    <span className={styles.streamingCursor}>|</span>
-                  )}
-                </p>
+                {entry.sender === 'ai' ? (
+                  <>
+                    {entry.streaming && !entry.text ? (
+                      // 流式响应开始时显示思考状态，而不是空的markdown渲染器
+                      <div className={styles.thinkingIndicator}>
+                        <span>正在思考</span>
+                        <span className={styles.streamingCursor}>|</span>
+                      </div>
+                    ) : (
+                      <ErrorBoundary
+                        fallback={<p>{entry.text}</p>}
+                      >
+                        <MarkdownRenderer>
+                          {entry.text}
+                        </MarkdownRenderer>
+                      </ErrorBoundary>
+                    )}
+                    {entry.streaming && entry.text && <span className={styles.streamingCursor}>|</span>}
+                  </>
+                ) : (
+                  <p>
+                    {entry.text}{entry.streaming && <span className={styles.streamingCursor}>|</span>}
+                  </p>
+                )}
                 {/* 错误指示器 */}
                 {entry.error && (
                   <div className={styles.errorIndicator}>
                     ❌ 消息发送失败
                   </div>
                 )}
+                
+                {/* 消息操作按钮 */}
+                {!entry.streaming && (
+                  <MessageActions
+                    message={entry}
+                    onCopy={handleCopyMessage}
+                    onRegenerate={handleRegenerateMessage}
+                    onFeedback={handleMessageFeedback}
+                    isAiMessage={entry.sender === 'ai'}
+                    isLastMessage={chatHistory.indexOf(entry) === chatHistory.length - 1}
+                  />
+                )}
+                
+                {/* 消息时间戳 */}
+                <MessageTimestamp 
+                  timestamp={entry.timestamp} 
+                  className={`inMessage ${entry.sender === 'user' ? 'userMessage' : 'aiMessage'}`}
+                />
               </div>
             </div>
           ))}
@@ -903,29 +1222,13 @@ const HomePage = () => {
             onToggleDeepSearch={handleToggleDeepSearch}
             placeholderText="Type your message here... (Shift+Enter for new line)"
           />
+          
+
+
         </div>
       </div>
       <SaveProjectModal isOpen={isSaveModalOpen} onClose={handleCloseSaveModal} onSave={actuallySaveProject} />
-      {/* 在页面渲染中添加测试按钮（临时用于调试） */}
-      {process.env.NODE_ENV === 'development' && (
-        <button 
-          onClick={testStreamingConnection}
-          style={{
-            position: 'fixed',
-            top: '10px',
-            right: '10px',
-            background: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            zIndex: 9999,
-          }}
-        >
-          测试流式连接
-        </button>
-      )}
+
     </div>
   );
 };

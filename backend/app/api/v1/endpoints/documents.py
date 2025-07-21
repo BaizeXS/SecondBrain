@@ -1,6 +1,8 @@
 """Document endpoints v2 - 使用服务层和CRUD层的完整版本."""
 
+import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import (
@@ -39,6 +41,7 @@ from app.schemas.web_import import (
 )
 from app.services import document_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -73,21 +76,64 @@ async def upload_document(
                 detail="无权在此空间上传文档",
             )
 
-    # 验证文件
-    if not file.content_type:
+    # 验证文件并修正MIME类型
+    detected_content_type = file.content_type
+    
+    # 如果浏览器检测失败或检测为generic类型，使用文件扩展名修正
+    if not detected_content_type or detected_content_type in ["application/octet-stream", ""]:
+        if file.filename:
+            file_ext = Path(file.filename).suffix.lower()
+            content_type_map = {
+                ".pdf": "application/pdf",
+                ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".doc": "application/msword",
+                ".txt": "text/plain",
+                ".md": "text/markdown",
+                ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".ppt": "application/vnd.ms-powerpoint",
+                ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".xls": "application/vnd.ms-excel",
+                ".csv": "text/csv",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+            }
+            corrected_type = content_type_map.get(file_ext)
+            if corrected_type:
+                logger.info(f"🔧 MIME类型修正: {detected_content_type} → {corrected_type} (基于扩展名 {file_ext})")
+                detected_content_type = corrected_type
+    
+    if not detected_content_type:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="无法识别文件类型",
         )
 
-    if file.content_type not in settings.ALLOWED_FILE_TYPES:
+    if detected_content_type not in settings.ALLOWED_FILE_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"不支持的文件类型: {file.content_type}",
+            detail=f"不支持的文件类型: {detected_content_type}",
         )
 
     # 检查文件大小
-    content = await file.read()
+    try:
+        content = await file.read()
+    except Exception as e:
+        logger.error(f"Failed to read file content: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"无法读取文件内容: {str(e)}",
+        )
+
+    # 检查内容是否为空
+    if content is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="文件内容为空（None）",
+        )
+
     file_size = len(content)
 
     if file_size > settings.max_file_size_bytes:
@@ -108,16 +154,112 @@ async def upload_document(
         tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
     try:
-        # 创建文档（简化版本，直接存储内容）
-        document = await document_service.create_document(
-            db,
-            space_id=space_id,
-            filename=file.filename or "未命名文档",
-            content=content.decode("utf-8", errors="ignore"),
-            content_type=file.content_type,
-            file_size=file_size,
-            user=current_user,
-        )
+        # 智能处理文件内容
+        processed_content = None
+        
+        # 检查是否需要内容提取的文件类型
+        extraction_needed_types = [
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/msword",
+            "application/vnd.ms-powerpoint"
+        ]
+        
+        logger.info(f"🔍 检查文件类型: detected_content_type={detected_content_type}")
+        logger.info(f"📋 需要提取内容的类型: {extraction_needed_types}")
+        logger.info(f"🎯 是否需要内容提取: {detected_content_type in extraction_needed_types}")
+        
+        if detected_content_type in extraction_needed_types:
+            # 需要内容提取的文件类型，保存到临时文件并使用create_document_from_file
+            import tempfile
+            import os
+            
+            # 创建临时文件
+            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
+                tmp_file.write(content)
+                tmp_file_path = Path(tmp_file.name)
+            
+            try:
+                # 使用增强的文档创建方法（包含内容提取）
+                document = await document_service.create_document_from_file(
+                    db,
+                    space_id=space_id,
+                    file_path=tmp_file_path,
+                    user=current_user,
+                    title=title or file.filename,
+                    original_filename=file.filename,  # 显式传递原始文件名
+                )
+                
+                logger.info(f"✅ 文档内容提取成功: {file.filename}, 内容长度: {len(document.content or '')} 字符")
+                
+            finally:
+                # 清理临时文件
+                try:
+                    os.unlink(tmp_file_path)
+                except Exception:
+                    pass
+                    
+        elif detected_content_type.startswith('text/') or detected_content_type in ['text/markdown', 'text/plain']:
+            # 处理文本文件
+            # 确保content不为空且是bytes类型
+            if content is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="文件内容为空，无法处理文本文件",
+                )
+            
+            if not isinstance(content, bytes):
+                logger.error(f"Expected bytes content, got {type(content)}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"文件内容类型错误: 期望bytes，得到{type(content)}",
+                )
+            
+            try:
+                # 尝试UTF-8解码
+                processed_content = content.decode("utf-8")
+                logger.info("Successfully decoded file as UTF-8")
+            except UnicodeDecodeError as e:
+                logger.warning(f"UTF-8 decoding failed: {e}")
+                try:
+                    # 尝试其他常见编码
+                    import chardet
+                    detected_encoding = chardet.detect(content)
+                    encoding = detected_encoding.get('encoding', 'utf-8') if detected_encoding else 'utf-8'
+                    processed_content = content.decode(encoding, errors="ignore")
+                    logger.info(f"🔤 检测到文件编码: {encoding}")
+                except Exception as e:
+                    logger.warning(f"编码检测失败: {e}，使用UTF-8 ignore")
+                    processed_content = content.decode("utf-8", errors="ignore")
+            except Exception as e:
+                logger.error(f"文本文件解码失败: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"文本文件解码失败: {str(e)}",
+                )
+            
+            # 创建文本文档
+            document = await document_service.create_document(
+                db,
+                space_id=space_id,
+                filename=file.filename or "未命名文档",
+                content=processed_content,
+                content_type=detected_content_type,
+                file_size=file_size,
+                user=current_user,
+            )
+        else:
+            # 其他二进制文件（如图片），不需要内容提取
+            document = await document_service.create_document(
+                db,
+                space_id=space_id,
+                filename=file.filename or "未命名文档",
+                content=None,
+                content_type=detected_content_type,
+                file_size=file_size,
+                user=current_user,
+            )
 
         # 更新文档的标题和标签
         if title or tag_list:

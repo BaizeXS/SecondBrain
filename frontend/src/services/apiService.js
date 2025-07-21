@@ -3,7 +3,7 @@
 // API基础配置
 import { getApiBaseUrl } from '../config/api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api/v1';
+const API_BASE_URL = getApiBaseUrl();
 
 // 在 apiRequest 函数中添加更好的错误处理
 const apiRequest = async (endpoint, options = {}) => {
@@ -44,16 +44,35 @@ const apiRequest = async (endpoint, options = {}) => {
         throw new Error('Token validation failed');
       }
       
-      // 如果有 token 但仍然是 400/401，记录详细错误但返回空结果以避免崩溃
+      // 如果有 token 但仍然是 400/401，提供更详细的错误信息
       if (response.status === 400 || response.status === 401) {
-        console.warn(`API call failed with authentication: ${endpoint}`, errorData);
+        console.error(`API call failed with authentication: ${endpoint}`, errorData);
+        
+        // 对于关键API操作，抛出错误而不是返回空结果
+        if (endpoint.includes('/spaces') || endpoint.includes('/documents') || endpoint.includes('/notes')) {
+          throw new Error(`认证失败或权限不足: ${errorData.detail || response.statusText}`);
+        }
+        
+        // 对于其他不太关键的API，返回空结果
         return getEmptyResponse(endpoint);
       }
       
       throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
     }
     
-    return await response.json();
+    // 对于 204 No Content 响应，不尝试解析 JSON
+    if (response.status === 204) {
+      return {};
+    }
+    
+    // 检查是否有内容可以解析
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    }
+    
+    // 如果不是 JSON 内容，返回空对象
+    return {};
   } catch (error) {
     // 网络错误处理
     if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
@@ -95,16 +114,60 @@ const apiUploadRequest = async (endpoint, formData) => {
   };
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+    console.log(`🚀 Upload request to: ${API_BASE_URL}${endpoint}`);
+    console.log('📁 FormData contents:');
+    for (let [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        console.log(`  ${key}: File(name=${value.name}, size=${value.size}, type=${value.type || 'unknown'})`);
+      } else {
+        console.log(`  ${key}: ${value}`);
+      }
     }
     
-    return await response.json();
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    
+    console.log(`📡 Response status: ${response.status} ${response.statusText}`);
+    console.log('📋 Response headers:', [...response.headers.entries()]);
+    
+    if (!response.ok) {
+      let errorData;
+      const contentType = response.headers.get('content-type');
+      
+      try {
+        if (contentType && contentType.includes('application/json')) {
+          errorData = await response.json();
+        } else {
+          const text = await response.text();
+          errorData = { detail: text };
+        }
+      } catch (parseError) {
+        console.error('Failed to parse error response:', parseError);
+        errorData = { detail: `HTTP ${response.status}: ${response.statusText}` };
+      }
+      
+      console.error('❌ Upload error details:', errorData);
+      
+      // 为不同错误状态码提供更详细的信息
+      let errorMessage = errorData.detail || `HTTP ${response.status}: ${response.statusText}`;
+      
+      if (response.status === 400) {
+        errorMessage = `请求参数错误: ${errorData.detail || '文件格式或内容有问题'}`;
+      } else if (response.status === 413) {
+        errorMessage = `文件太大: ${errorData.detail || '文件大小超过限制'}`;
+      } else if (response.status === 422) {
+        errorMessage = `数据验证失败: ${errorData.detail || '请检查文件格式和内容'}`;
+      } else if (response.status === 500) {
+        errorMessage = `服务器内部错误: ${errorData.detail || '请稍后重试或联系管理员'}`;
+      }
+      
+      throw new Error(errorMessage);
+    }
+    
+    const result = await response.json();
+    console.log('✅ Upload successful:', result);
+    return result;
   } catch (error) {
-    console.error(`API Upload failed: ${endpoint}`, error);
+    console.error(`❌ API Upload failed: ${endpoint}`, error);
     throw error;
   }
 };
@@ -297,11 +360,50 @@ export const documentAPI = {
 
   // 上传文档
   uploadDocument: async (spaceId, file, title = null, tags = null) => {
+    console.log('📤 uploadDocument called with spaceId:', spaceId, 'type:', typeof spaceId);
+    
+    // 验证spaceId
+    if (!spaceId || spaceId === 'undefined' || spaceId === undefined) {
+      throw new Error(`无效的空间ID: ${spaceId}`);
+    }
+    
+    // 确保spaceId是数字
+    const numericSpaceId = parseInt(spaceId);
+    if (isNaN(numericSpaceId)) {
+      throw new Error(`空间ID必须是数字: ${spaceId}`);
+    }
+    
+    // 验证文件
+    if (!file) {
+      throw new Error('文件不能为空');
+    }
+    
+    if (!file.name) {
+      throw new Error('文件名不能为空');
+    }
+    
+    if (file.size === 0) {
+      throw new Error('文件不能为空文件');
+    }
+    
+    // 文件大小检查 (100MB)
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      throw new Error(`文件大小不能超过100MB，当前文件大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+    }
+    
+    console.log('✅ Validated spaceId:', numericSpaceId);
+    console.log('✅ Validated file:', file.name, '大小:', (file.size / 1024).toFixed(2) + 'KB');
+    
     const formData = new FormData();
-    formData.append('space_id', spaceId);
+    formData.append('space_id', numericSpaceId.toString()); // 确保是数字字符串
     formData.append('file', file);
     if (title) formData.append('title', title);
-    if (tags) formData.append('tags', tags);
+    if (tags) {
+      // 如果tags是数组，转换为JSON字符串
+      const tagsValue = Array.isArray(tags) ? JSON.stringify(tags) : tags;
+      formData.append('tags', tagsValue);
+    }
 
     return apiUploadRequest('/documents/upload', formData);
   },

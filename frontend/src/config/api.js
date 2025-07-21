@@ -4,14 +4,14 @@
 const API_CONFIG = {
   // 开发环境
   development: {
-    BASE_URL: process.env.REACT_APP_API_URL || '/api/v1',
+    BASE_URL: process.env.REACT_APP_API_URL || 'http://43.160.192.140:8000/api/v1',
     TIMEOUT: 30000,
     RETRY_ATTEMPTS: 3,
   },
   
   // 生产环境
   production: {
-    BASE_URL: process.env.REACT_APP_API_URL || '/api/v1',
+    BASE_URL: process.env.REACT_APP_API_URL || 'http://43.160.192.140:8000/api/v1',
     TIMEOUT: 30000,
     RETRY_ATTEMPTS: 3,
   },

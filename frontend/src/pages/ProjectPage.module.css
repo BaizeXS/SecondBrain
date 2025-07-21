@@ -343,12 +343,156 @@ aiMessage {
   justify-content: flex-start;
   margin-right: auto;
 }
+
+/* 正在思考指示器 */
+.thinkingIndicator {
+  color: #6c757d;
+  font-style: italic;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thinkingIndicator span:first-child {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Markdown 内容样式 */
+.markdownContent {
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.markdownContent h1,
+.markdownContent h2,
+.markdownContent h3,
+.markdownContent h4,
+.markdownContent h5,
+.markdownContent h6 {
+  margin: 0.5em 0 0.3em 0;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.markdownContent h1 { font-size: 1.4em; }
+.markdownContent h2 { font-size: 1.3em; }
+.markdownContent h3 { font-size: 1.2em; }
+.markdownContent h4 { font-size: 1.1em; }
+.markdownContent h5 { font-size: 1.05em; }
+.markdownContent h6 { font-size: 1em; }
+
+.markdownContent p {
+  margin: 0.5em 0;
+}
+
+.markdownContent ul,
+.markdownContent ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.markdownContent li {
+  margin: 0.2em 0;
+}
+
+.markdownContent blockquote {
+  border-left: 3px solid #ddd;
+  margin: 0.5em 0;
+  padding: 0.3em 1em;
+  background-color: rgba(0, 0, 0, 0.03);
+  font-style: italic;
+}
+
+.markdownContent code {
+  background-color: rgba(0, 0, 0, 0.08);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}
+
+.markdownContent pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  padding: 0.8em;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.markdownContent pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.85em;
+}
+
+.markdownContent table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.markdownContent table th,
+.markdownContent table td {
+  border: 1px solid #ddd;
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+
+.markdownContent table th {
+  background-color: rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+}
+
+.markdownContent hr {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 1em 0;
+}
+
+.markdownContent a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.markdownContent a:hover {
+  text-decoration: underline;
+}
 .aiMessage .messageBubbleContent {
   background-color: #e9ecef;
   color: #343a40;
   border-bottom-left-radius: 5px;
 }
 .aiMessage .messageBubbleContent p { color: #343a40; }
+
+/* 流式输出光标样式 */
+.streamingCursor {
+  display: inline-block;
+  color: #666;
+  font-weight: normal;
+  animation: blink 1s infinite;
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
 
 .emptyChatMessage {
   text-align: center; padding: 30px; font-style: italic; color: #64748b;

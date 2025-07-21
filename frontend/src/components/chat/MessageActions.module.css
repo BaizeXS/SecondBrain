@@ -1,0 +1,166 @@
+/* src/components/chat/MessageActions.module.css */
+
+.messageActions {
+  position: relative;
+  margin-top: 0.5em;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* 鼠标悬停时显示操作按钮 */
+.messageActions:hover,
+.messageActions:focus-within {
+  opacity: 1;
+}
+
+/* 主要操作按钮容器 */
+.primaryActions {
+  display: flex;
+  gap: 0.25em;
+  align-items: center;
+}
+
+/* 操作按钮样式 */
+.actionButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.4em;
+  border-radius: 4px;
+  color: #6c757d;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85em;
+  min-width: 1.8em;
+  min-height: 1.8em;
+}
+
+.actionButton:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #495057;
+}
+
+.actionButton:active {
+  transform: scale(0.95);
+}
+
+/* 成功状态图标 */
+.successIcon {
+  color: #28a745;
+}
+
+/* 扩展操作菜单 */
+.extendedActions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  margin-top: 0.25em;
+}
+
+.actionMenu {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5em 0;
+  min-width: 120px;
+}
+
+.menuItem {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5em 1em;
+  text-align: left;
+  font-size: 0.85em;
+  color: #495057;
+  transition: background-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.menuItem:hover {
+  background-color: #f8f9fa;
+  color: #212529;
+}
+
+.menuItem:active {
+  background-color: #e9ecef;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .messageActions {
+    opacity: 1; /* 在移动设备上始终显示 */
+  }
+  
+  .actionButton {
+    padding: 0.5em;
+    min-width: 2em;
+    min-height: 2em;
+  }
+  
+  .actionMenu {
+    min-width: 140px;
+  }
+  
+  .menuItem {
+    padding: 0.6em 1em;
+    font-size: 0.9em;
+  }
+}
+
+/* 当消息悬停时显示操作按钮 */
+.messageBubbleContent:hover .messageActions {
+  opacity: 1;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.extendedActions {
+  animation: fadeIn 0.15s ease-out;
+}
+
+/* 深色主题适配 */
+@media (prefers-color-scheme: dark) {
+  .actionButton {
+    color: #adb5bd;
+  }
+  
+  .actionButton:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #f8f9fa;
+  }
+  
+  .actionMenu {
+    background: #343a40;
+    border-color: #495057;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  .menuItem {
+    color: #f8f9fa;
+  }
+  
+  .menuItem:hover {
+    background-color: #495057;
+    color: #ffffff;
+  }
+  
+  .menuItem:active {
+    background-color: #6c757d;
+  }
+} 
