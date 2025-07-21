@@ -1,0 +1,1163 @@
+{
+  "info": {
+    "name": "SecondBrain API - 04.高级功能",
+    "description": "包含标注、引用管理、导出、Ollama等高级功能\n\n说明：\n- Ollama功能需要本地安装Ollama\n- 导出功能可能需要较长处理时间",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "space_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "note_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "version_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "document_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "message_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "version_number",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "branch_name",
+      "value": "alternative-response",
+      "type": "string"
+    },
+    {
+      "key": "annotation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "citation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "agent_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "model_name",
+      "value": "llama2:7b",
+      "type": "string"
+    },
+    {
+      "key": "page_number",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. 登录认证",
+      "item": [
+        {
+          "name": "用户登录（获取Token）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has tokens\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('access_token');",
+                  "    pm.expect(jsonData).to.have.property('refresh_token');",
+                  "    ",
+                  "    // 保存tokens到集合变量",
+                  "    pm.collectionVariables.set(\"access_token\", jsonData.access_token);",
+                  "    pm.collectionVariables.set(\"refresh_token\", jsonData.refresh_token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password_plain}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                "json"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. 标注功能",
+      "item": [
+        {
+          "name": "获取文档标注列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has annotations list\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('annotations');",
+                  "    pm.expect(jsonData).to.have.property('total');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/annotations/document/{{document_id}}?page_number=1&limit=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "document",
+                "{{document_id}}"
+              ],
+              "query": [
+                {
+                  "key": "page_number",
+                  "value": "1",
+                  "description": "页码筛选"
+                },
+                {
+                  "key": "annotation_type",
+                  "value": "highlight",
+                  "description": "标注类型筛选",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取指定页码范围标注",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/annotations/document/{{document_id}}/pages?start_page=1&end_page=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "document",
+                "{{document_id}}",
+                "pages"
+              ],
+              "query": [
+                {
+                  "key": "start_page",
+                  "value": "1"
+                },
+                {
+                  "key": "end_page",
+                  "value": "5"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取PDF页面标注",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/annotations/document/{{document_id}}/pdf/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "document",
+                "{{document_id}}",
+                "pdf",
+                "{{page_number}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取我的所有标注",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/annotations/my?limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "annotation_type",
+                  "value": "highlight",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取标注统计",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/annotations/statistics?document_id={{document_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "document_id",
+                  "value": "{{document_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取标注详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/annotations/{{annotation_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "{{annotation_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "创建标注",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Save annotation ID\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set(\"annotation_id\", jsonData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"type\": \"highlight\",\n  \"content\": \"这里需要重点关注\",\n  \"selected_text\": \"这是一个重要的段落\",\n  \"page_number\": 1,\n  \"position_data\": {\n    \"x\": 100,\n    \"y\": 200,\n    \"width\": 400,\n    \"height\": 50\n  },\n  \"color\": \"#FFFF00\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/annotations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "批量创建标注",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"annotations\": [\n    {\n      \"type\": \"highlight\",\n      \"content\": \"第一个高亮批注\",\n      \"selected_text\": \"第一个标注\",\n      \"page_number\": 1,\n      \"position_data\": {\n        \"x\": 100,\n        \"y\": 100,\n        \"width\": 200,\n        \"height\": 30\n      },\n      \"color\": \"#FFFF00\"\n    },\n    {\n      \"type\": \"note\",\n      \"content\": \"补充说明\",\n      \"selected_text\": \"第二个标注\",\n      \"page_number\": 2,\n      \"position_data\": {\n        \"x\": 150,\n        \"y\": 300,\n        \"width\": 250,\n        \"height\": 40\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/annotations/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "batch"
+              ]
+            }
+          }
+        },
+        {
+          "name": "批量创建PDF标注",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"page_number\": 1,\n  \"highlights\": [\n    {\n      \"text\": \"重要文本\",\n      \"rects\": [\n        {\n          \"x\": 100,\n          \"y\": 200,\n          \"width\": 300,\n          \"height\": 20\n        }\n      ],\n      \"color\": \"yellow\"\n    }\n  ],\n  \"text_annotations\": [\n    {\n      \"text\": \"注释内容\",\n      \"x\": 400,\n      \"y\": 300,\n      \"note\": \"这是一个文本注释\"\n    }\n  ],\n  \"ink_annotations\": [],\n  \"square_annotations\": []\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/annotations/pdf/batch?document_id={{document_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "pdf",
+                "batch"
+              ],
+              "query": [
+                {
+                  "key": "document_id",
+                  "value": "{{document_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "更新标注",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"更新后的注释内容\",\n  \"color\": \"blue\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/annotations/{{annotation_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "{{annotation_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "删除标注",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/annotations/{{annotation_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "{{annotation_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "导出标注",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_ids\": [\"{{document_id}}\"],\n  \"format\": \"markdown\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/annotations/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "export"
+              ]
+            }
+          }
+        },
+        {
+          "name": "复制标注",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/annotations/copy?source_document_id={{document_id}}&target_document_id={{document_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "annotations",
+                "copy"
+              ],
+              "query": [
+                {
+                  "key": "source_document_id",
+                  "value": "{{document_id}}"
+                },
+                {
+                  "key": "target_document_id",
+                  "value": "{{document_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. 引用管理",
+      "item": [
+        {
+          "name": "导入BibTeX",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has import results\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('imported_count');",
+                  "    pm.expect(jsonData).to.have.property('citations');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bibtex_content\": \"@article{example2024,\\n  title={Example Article},\\n  author={John Doe and Jane Smith},\\n  journal={Example Journal},\\n  year={2024},\\n  volume={1},\\n  pages={1-10}\\n}\",\n  \"space_id\": \"{{space_id}}\",\n  \"create_documents\": false,\n  \"tags\": [\"imported\", \"bibtex\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/citations/import-bibtex",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "citations",
+                "import-bibtex"
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取引用列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/citations/?space_id={{space_id}}&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "citations",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "space_id",
+                  "value": "{{space_id}}"
+                },
+                {
+                  "key": "document_id",
+                  "value": "{{document_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取引用详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/citations/{{citation_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "citations",
+                "{{citation_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "创建引用",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Save citation ID\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set(\"citation_id\", jsonData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bibtex_key\": \"test2024\",\n  \"citation_type\": \"article\",\n  \"title\": \"测试文章标题\",\n  \"authors\": [\"张三\", \"李四\"],\n  \"year\": 2024,\n  \"journal\": \"测试期刊\",\n  \"volume\": \"10\",\n  \"issue\": \"2\",\n  \"pages\": \"100-120\",\n  \"doi\": \"10.1234/test.2024\",\n  \"url\": \"https://example.com/article\",\n  \"abstract\": \"这是文章摘要内容\",\n  \"keywords\": [\"测试\", \"引用管理\"],\n  \"tags\": [\"重要\", \"待读\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/citations/?space_id={{space_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "citations",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "space_id",
+                  "value": "{{space_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "更新引用",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"更新后的标题\",\n  \"abstract\": \"更新后的摘要\",\n  \"tags\": [\"已读\", \"重要\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/citations/{{citation_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "citations",
+                "{{citation_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "删除引用",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/citations/{{citation_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "citations",
+                "{{citation_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "搜索引用",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"machine learning\",\n  \"space_id\": \"{{space_id}}\",\n  \"citation_type\": \"article\",\n  \"year_from\": 2020,\n  \"year_to\": 2024,\n  \"authors\": []\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/citations/search?limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "citations",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "导出引用",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"citation_ids\": [],\n  \"space_id\": \"{{space_id}}\",\n  \"format\": \"bibtex\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/citations/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "citations",
+                "export"
+              ]
+            }
+          }
+        },
+        {
+          "name": "格式化引用",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"citation_ids\": [\"{{citation_id}}\"],\n  \"style\": \"apa\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/citations/format",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "citations",
+                "format"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Ollama集成",
+      "item": [
+        {
+          "name": "获取模型列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has models list\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('models');",
+                  "    pm.expect(jsonData).to.have.property('total');",
+                  "    pm.expect(jsonData).to.have.property('is_available');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ollama/models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ollama",
+                "models"
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取模型详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ollama/models/{{model_name}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ollama",
+                "models",
+                "{{model_name}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "拉取新模型",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has task info\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('task_id');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('model_name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model_name\": \"llama2:7b\",\n  \"insecure\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ollama/pull",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ollama",
+                "pull"
+              ]
+            }
+          }
+        },
+        {
+          "name": "删除模型",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ollama/models/{{model_name}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ollama",
+                "models",
+                "{{model_name}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取Ollama状态",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has status info\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('is_available');",
+                  "    pm.expect(jsonData).to.have.property('version');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ollama/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ollama",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取推荐模型",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ollama/recommended-models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ollama",
+                "recommended-models"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. 导出功能",
+      "item": [
+        {
+          "name": "导出空间",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"space_id\": \"{{space_id}}\",\n  \"format\": \"pdf\",\n  \"include_documents\": true,\n  \"include_notes\": true,\n  \"include_content\": false,\n  \"include_citations\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/export/space",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "export",
+                "space"
+              ]
+            }
+          }
+        },
+        {
+          "name": "导出笔记",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note_ids\": [\"{{note_id}}\"],\n  \"format\": \"pdf\",\n  \"include_metadata\": true,\n  \"include_versions\": false,\n  \"merge_into_one\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/export/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "export",
+                "notes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "导出文档",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_ids\": [\"{{document_id}}\"],\n  \"format\": \"pdf\",\n  \"include_annotations\": true,\n  \"merge_into_one\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/export/documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "export",
+                "documents"
+              ]
+            }
+          }
+        },
+        {
+          "name": "导出对话（Markdown格式）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversation_ids\": [\"{{conversation_id}}\"],\n  \"format\": \"markdown\",\n  \"include_branches\": true,\n  \"merge_into_one\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/export/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "export",
+                "conversations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "导出对话（JSON格式）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversation_ids\": [\"{{conversation_id}}\"],\n  \"format\": \"json\",\n  \"include_metadata\": true,\n  \"include_branches\": true,\n  \"merge_into_one\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/export/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "export",
+                "conversations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "批量导出对话",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversation_ids\": [1, 2, 3],\n  \"format\": \"pdf\",\n  \"merge_into_one\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/export/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "export",
+                "conversations"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

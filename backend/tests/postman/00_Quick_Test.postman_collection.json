@@ -1,0 +1,626 @@
+{
+  "info": {
+    "name": "SecondBrain API - 快速测试",
+    "description": "包含最常用的API端点，用于快速验证系统功能\n\n测试流程：\n1. 健康检查\n2. 用户登录\n3. 创建空间\n4. 创建笔记\n5. 简单AI对话",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "space_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "note_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "version_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "document_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "message_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "version_number",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "branch_name",
+      "value": "alternative-response",
+      "type": "string"
+    },
+    {
+      "key": "annotation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "citation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "agent_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "model_name",
+      "value": "llama2:7b",
+      "type": "string"
+    },
+    {
+      "key": "page_number",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "健康检查",
+      "item": [
+        {
+          "name": "健康检查",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "用户登录",
+      "item": [
+        {
+          "name": "用户登录",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has tokens\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('access_token');",
+                  "    pm.expect(jsonData).to.have.property('refresh_token');",
+                  "    ",
+                  "    // 保存tokens到环境变量",
+                  "    pm.environment.set(\"access_token\", jsonData.access_token);",
+                  "    pm.environment.set(\"refresh_token\", jsonData.refresh_token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "username",
+                  "value": "{{username}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password_plain}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "获取用户信息",
+      "item": [
+        {
+          "name": "获取当前用户信息",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "空间管理",
+      "item": [
+        {
+          "name": "创建空间",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Save space ID\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"space_id\", jsonData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"测试空间\",\n  \"description\": \"这是一个测试空间\",\n  \"color\": \"#FF5733\",\n  \"icon\": \"folder\",\n  \"is_public\": false,\n  \"tags\": [\"测试\", \"演示\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/spaces/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "spaces",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取空间列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/spaces/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "spaces",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "tags",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "is_public",
+                  "value": "false",
+                  "disabled": true
+                },
+                {
+                  "key": "include_public",
+                  "value": "false",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "笔记管理",
+      "item": [
+        {
+          "name": "基础操作",
+          "item": [
+            {
+              "name": "创建笔记",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Save note ID\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.environment.set(\"note_id\", jsonData.id);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"测试笔记\",\n  \"content\": \"# 测试标题\\n\\n这是测试内容\",\n  \"space_id\": {{space_id}},\n  \"note_type\": \"manual\",\n  \"tags\": [\"测试\", \"笔记\"]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/notes/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notes",
+                    ""
+                  ]
+                }
+              }
+            },
+            {
+              "name": "获取笔记列表",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notes/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notes",
+                    ""
+                  ],
+                  "query": [
+                    {
+                      "key": "space_id",
+                      "value": "{{space_id}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "note_type",
+                      "value": "manual",
+                      "disabled": true
+                    },
+                    {
+                      "key": "tags",
+                      "value": "测试",
+                      "disabled": true
+                    },
+                    {
+                      "key": "skip",
+                      "value": "0",
+                      "disabled": true
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort_by",
+                      "value": "created_at",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort_order",
+                      "value": "desc",
+                      "disabled": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "获取最近笔记",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notes/recent?limit=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notes",
+                    "recent"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    },
+                    {
+                      "key": "note_type",
+                      "value": "manual",
+                      "disabled": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "获取笔记详情",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notes/{{note_id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notes",
+                    "{{note_id}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "更新笔记",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"# 更新的标题\\n\\n更新的内容\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/notes/{{note_id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notes",
+                    "{{note_id}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "删除笔记",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notes/{{note_id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notes",
+                    "{{note_id}}"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "AI功能",
+          "item": [
+            {
+              "name": "AI生成笔记",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has note data\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('id');",
+                      "    pm.expect(jsonData).to.have.property('title');",
+                      "    pm.expect(jsonData).to.have.property('content');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"prompt\": \"生成一篇关于机器学习基础概念的笔记\",\n  \"space_id\": {{space_id}},\n  \"note_type\": \"ai_generated\",\n  \"tags\": [\"机器学习\", \"AI生成\"]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/notes/ai/generate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notes",
+                    "ai",
+                    "generate"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "AI文档总结",
+              "description": "此 API 用于总结已上传的文档，而不是直接总结文本。需要先通过 '文档管理/上传文档' 接口上传文档文件，然后传入返回的文档ID进行总结。注意：文档必须属于当前用户，并且content字段不能为空。",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has note\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('id');",
+                      "    pm.expect(jsonData).to.have.property('content');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"document_ids\": [{{document_id}}],\n  \"space_id\": {{space_id}},\n  \"summary_type\": \"brief\",\n  \"max_length\": 1000,\n  \"language\": \"zh\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/notes/ai/summary",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notes",
+                    "ai",
+                    "summary"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "搜索功能",
+          "item": [
+            {
+              "name": "搜索笔记",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"query\": \"测试\",\n  \"space_ids\": [{{space_id}}],\n  \"tags\": [\"测试\"],\n  \"content_types\": [\"manual\", \"ai_generated\"],\n  \"limit\": 20\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/notes/search",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notes",
+                    "search"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

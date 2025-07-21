@@ -1,0 +1,1384 @@
+{
+  "info": {
+    "name": "SecondBrain API - 03.AI功能",
+    "description": "包含AI对话、深度研究、AI代理等智能功能\n\n注意事项：\n- 需要配置正确的AI API密钥\n- 某些功能可能需要较长响应时间",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "space_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "note_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "version_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "document_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "message_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "version_number",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "branch_name",
+      "value": "alternative-response",
+      "type": "string"
+    },
+    {
+      "key": "annotation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "citation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "agent_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "model_name",
+      "value": "llama2:7b",
+      "type": "string"
+    },
+    {
+      "key": "page_number",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. 登录认证",
+      "item": [
+        {
+          "name": "用户登录（获取Token）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has tokens\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('access_token');",
+                  "    pm.expect(jsonData).to.have.property('refresh_token');",
+                  "    ",
+                  "    // 保存tokens到集合变量",
+                  "    pm.collectionVariables.set(\"access_token\", jsonData.access_token);",
+                  "    pm.collectionVariables.set(\"refresh_token\", jsonData.refresh_token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password_plain}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                "json"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AI对话",
+      "item": [
+        {
+          "name": "基础对话管理",
+          "item": [
+            {
+              "name": "创建对话",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has conversation data\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('id');",
+                      "    pm.expect(jsonData).to.have.property('title');",
+                      "    pm.expect(jsonData).to.have.property('mode');",
+                      "    pm.collectionVariables.set(\"conversation_id\", jsonData.id);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"测试对话\",\n  \"mode\": \"chat\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "创建带空间的对话",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has conversation with space\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('id');",
+                      "    pm.expect(jsonData).to.have.property('space_id');",
+                      "    pm.expect(jsonData.space_id).to.equal(pm.collectionVariables.get('space_id'));",
+                      "    pm.expect(jsonData).to.have.property('model');",
+                      "    pm.expect(jsonData.model).to.equal('openrouter/auto');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"空间内的对话\",\n  \"mode\": \"chat\",\n  \"space_id\": \"{{space_id}}\",\n  \"model\": \"openrouter/auto\",\n  \"prompt_template\": \"你是一个专业的AI助手\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "获取对话列表",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has conversation list structure\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('conversations');",
+                      "    pm.expect(jsonData.conversations).to.be.an('array');",
+                      "    pm.expect(jsonData).to.have.property('total');",
+                      "    pm.expect(jsonData).to.have.property('page');",
+                      "    pm.expect(jsonData).to.have.property('page_size');",
+                      "    pm.expect(jsonData).to.have.property('has_next');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations"
+                  ],
+                  "query": [
+                    {
+                      "key": "space_id",
+                      "value": "{{space_id}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mode",
+                      "value": "chat",
+                      "disabled": true
+                    },
+                    {
+                      "key": "skip",
+                      "value": "0",
+                      "disabled": true
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20",
+                      "disabled": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "获取对话详情（带消息历史）",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}?message_limit=50",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "message_limit",
+                      "value": "50"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "更新对话信息",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"更新后的对话标题\",\n  \"model\": \"gpt-4\",\n  \"prompt_template\": \"你是一个编程助手，请用简洁清晰的方式回答问题\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "删除对话",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});",
+                      "",
+                      "pm.test(\"Response body is empty\", function () {",
+                      "    pm.expect(pm.response.text()).to.be.empty;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "消息发送",
+          "item": [
+            {
+              "name": "发送普通消息（JSON）",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has message data\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('id');",
+                      "    pm.expect(jsonData).to.have.property('content');",
+                      "    pm.expect(jsonData).to.have.property('role');",
+                      "    ",
+                      "    // 保存消息ID",
+                      "    pm.collectionVariables.set(\"message_id\", jsonData.id);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"你好，请介绍一下你自己\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "messages"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "发送消息（指定模型）",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"解释一下什么是机器学习\",\n  \"model\": \"claude-3-opus-20240229\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "messages"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "发送带附件的消息",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "content",
+                      "value": "请分析这个图片",
+                      "type": "text"
+                    },
+                    {
+                      "key": "attachments",
+                      "type": "file",
+                      "src": "/path/to/image.png"
+                    },
+                    {
+                      "key": "auto_switch_vision",
+                      "value": "true",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "messages"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "发送多文件消息",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "content",
+                      "value": "请对比分析这些文档",
+                      "type": "text"
+                    },
+                    {
+                      "key": "attachments",
+                      "type": "file",
+                      "src": "/path/to/doc1.pdf"
+                    },
+                    {
+                      "key": "attachments",
+                      "type": "file",
+                      "src": "/path/to/doc2.pdf"
+                    },
+                    {
+                      "key": "model",
+                      "value": "gpt-4-vision-preview",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "messages"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "发送带附件信息的JSON消息",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has attachments\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('attachments');",
+                      "    pm.expect(jsonData.attachments).to.be.an('array');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"这是之前分析的文档总结\",\n  \"attachments\": [\n    {\n      \"filename\": \"document.pdf\",\n      \"type\": \"document\",\n      \"url\": \"https://example.com/doc.pdf\",\n      \"extracted_text\": \"文档的提取文本内容...\",\n      \"metadata\": {\n        \"pages\": 10,\n        \"size\": 1024000\n      }\n    }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "messages"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "发送空消息（错误测试）",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 400\", function () {",
+                      "    pm.response.to.have.status(400);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has error message\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('detail');",
+                      "    pm.expect(jsonData.detail).to.include('消息内容不能为空');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "messages"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "OpenAI兼容接口",
+          "item": [
+            {
+              "name": "创建聊天完成（普通）",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"model\": \"gpt-3.5-turbo\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"你是一个有帮助的助手\"},\n    {\"role\": \"user\", \"content\": \"什么是Python？\"}\n  ],\n  \"temperature\": 0.7\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/completions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "completions"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "创建聊天完成（流式）",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"model\": \"gpt-3.5-turbo\",\n  \"messages\": [\n    {\"role\": \"user\", \"content\": \"写一个简短的故事\"}\n  ],\n  \"stream\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/completions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "completions"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "创建聊天完成（带文档上下文）",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"model\": \"gpt-3.5-turbo\",\n  \"messages\": [\n    {\"role\": \"user\", \"content\": \"根据文档内容回答问题\"}\n  ],\n  \"document_ids\": [\"{{document_id}}\"],\n  \"space_id\": \"{{space_id}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/completions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "completions"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "创建聊天完成（搜索模式）",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"model\": \"perplexity/pplx-7b-online\",\n  \"messages\": [\n    {\"role\": \"user\", \"content\": \"2024年最新的AI发展趋势是什么？\"}\n  ],\n  \"mode\": \"search\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/completions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "completions"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "创建聊天完成（带对话ID）",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has completion data\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('id');",
+                      "    pm.expect(jsonData).to.have.property('choices');",
+                      "    pm.expect(jsonData.choices[0]).to.have.property('message');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"model\": \"gpt-3.5-turbo\",\n  \"messages\": [\n    {\"role\": \"user\", \"content\": \"继续我们之前的对话\"}\n  ],\n  \"conversation_id\": \"{{conversation_id}}\",\n  \"stream\": false\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/completions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "completions"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "创建聊天完成（完整参数）",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has usage data\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('usage');",
+                      "    pm.expect(jsonData.usage).to.have.property('prompt_tokens');",
+                      "    pm.expect(jsonData.usage).to.have.property('completion_tokens');",
+                      "    pm.expect(jsonData.usage).to.have.property('total_tokens');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"model\": \"gpt-3.5-turbo\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"你是一个创意写作助手\"},\n    {\"role\": \"user\", \"content\": \"写一首关于春天的诗\"}\n  ],\n  \"temperature\": 0.8,\n  \"max_tokens\": 150,\n  \"top_p\": 0.9,\n  \"frequency_penalty\": 0.5,\n  \"presence_penalty\": 0.3,\n  \"stop\": [\"\\n\\n\"],\n  \"n\": 1,\n  \"user\": \"test_user_123\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/completions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "completions"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "创建聊天完成（带工具调用）",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"model\": \"gpt-3.5-turbo\",\n  \"messages\": [\n    {\"role\": \"user\", \"content\": \"帮我计算123加456的结果\"}\n  ],\n  \"tools\": [\n    {\n      \"type\": \"function\",\n      \"function\": {\n        \"name\": \"calculate\",\n        \"description\": \"进行数学计算\",\n        \"parameters\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"expression\": {\n              \"type\": \"string\",\n              \"description\": \"数学表达式\"\n            }\n          },\n          \"required\": [\"expression\"]\n        }\n      }\n    }\n  ],\n  \"tool_choice\": \"auto\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/completions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "completions"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "模型管理",
+          "item": [
+            {
+              "name": "获取可用模型列表",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has models array\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('data');",
+                      "    pm.expect(jsonData.data).to.be.an('array');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/models",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "models"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "高级功能",
+          "item": [
+            {
+              "name": "重新生成消息（基础）",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has regenerated message\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('id');",
+                      "    pm.expect(jsonData).to.have.property('content');",
+                      "    pm.expect(jsonData).to.have.property('role');",
+                      "    pm.expect(jsonData.role).to.equal('assistant');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/messages/{{message_id}}/regenerate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "messages",
+                    "{{message_id}}",
+                    "regenerate"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "重新生成消息（指定模型和温度）",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response uses specified model\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property('model');",
+                      "    pm.expect(jsonData.model).to.include('gpt-4');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/messages/{{message_id}}/regenerate?model=gpt-4&temperature=0.5",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "messages",
+                    "{{message_id}}",
+                    "regenerate"
+                  ],
+                  "query": [
+                    {
+                      "key": "model",
+                      "value": "gpt-4"
+                    },
+                    {
+                      "key": "temperature",
+                      "value": "0.5"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "分析附件",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "attachments",
+                      "type": "file",
+                      "src": "/path/to/document.pdf"
+                    },
+                    {
+                      "key": "attachments",
+                      "type": "file",
+                      "src": "/path/to/image.jpg"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/analyze-attachments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "analyze-attachments"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "分支管理",
+          "item": [
+            {
+              "name": "创建对话分支",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"from_message_id\": \"{{message_id}}\",\n  \"branch_name\": \"alternative-response\",\n  \"content\": \"让我们尝试一个不同的方向\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/branches",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "branches"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "列出对话分支",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/branches",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "branches"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "切换分支",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"branch_name\": \"alternative-response\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/branches/switch",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "branches",
+                    "switch"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "获取分支历史",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/branches/history",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "branches",
+                    "history"
+                  ],
+                  "query": [
+                    {
+                      "key": "message_id",
+                      "value": "{{message_id}}",
+                      "disabled": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "合并分支",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"source_branch\": \"alternative-response\",\n  \"target_message_id\": \"{{message_id}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/branches/merge",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "branches",
+                    "merge"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "删除分支",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/chat/conversations/{{conversation_id}}/branches/{{branch_name}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "chat",
+                    "conversations",
+                    "{{conversation_id}}",
+                    "branches",
+                    "{{branch_name}}"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. 深度研究",
+      "item": [
+        {
+          "name": "执行深度研究",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"人工智能的最新进展\",\n  \"mode\": \"general\",\n  \"stream\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agents/deep-research",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agents",
+                "deep-research"
+              ]
+            }
+          }
+        },
+        {
+          "name": "执行深度研究（流式）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"量子计算的应用前景\",\n  \"mode\": \"academic\",\n  \"stream\": true,\n  \"space_id\": \"{{space_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agents/deep-research",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agents",
+                "deep-research"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. AI代理",
+      "item": [
+        {
+          "name": "获取代理列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/agents/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agents",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "agent_type",
+                  "value": "research",
+                  "disabled": true
+                },
+                {
+                  "key": "is_public",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取代理详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/agents/{{agent_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "执行代理任务",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"帮我研究一下区块链技术\",\n  \"mode\": \"general\",\n  \"stream\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agents/{{agent_id}}/execute",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "execute"
+              ]
+            }
+          }
+        },
+        {
+          "name": "创建自定义代理",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"我的AI助手\",\n  \"description\": \"专门为我定制的AI助手\",\n  \"agent_type\": \"custom\",\n  \"capabilities\": [\"chat\", \"analysis\"],\n  \"prompt_template\": \"你是一个专业的AI助手，擅长...\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agents/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agents",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

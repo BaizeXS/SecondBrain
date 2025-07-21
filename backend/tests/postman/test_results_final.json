@@ -1,0 +1,525 @@
+{
+  "stats": {
+    "total": 109,
+    "passed": 104,
+    "failed": 4,
+    "skipped": 1
+  },
+  "coverage": {
+    "total_endpoints": 133,
+    "tested_endpoints": 101,
+    "coverage_rate": 75.93984962406014,
+    "api_details": {
+      "GET http://localhost:8000/health": {
+        "tested": true,
+        "description": "根路径健康检查",
+        "status": "passed"
+      },
+      "GET /health": {
+        "tested": true,
+        "description": "API健康检查",
+        "status": "passed"
+      },
+      "POST /auth/register": {
+        "tested": true,
+        "description": "用户注册",
+        "status": "passed"
+      },
+      "POST /auth/login": {
+        "tested": true,
+        "description": "重新登录",
+        "status": "passed"
+      },
+      "POST /auth/login/json": {
+        "tested": true,
+        "description": "JSON登录",
+        "status": "passed"
+      },
+      "POST /auth/refresh": {
+        "tested": true,
+        "description": "刷新令牌",
+        "status": "passed"
+      },
+      "POST /auth/change-password": {
+        "tested": true,
+        "description": "修改密码",
+        "status": "passed"
+      },
+      "POST /auth/reset-password": {
+        "tested": true,
+        "description": "重置密码请求",
+        "status": "passed"
+      },
+      "POST /auth/reset-password/confirm": {
+        "tested": true,
+        "description": "确认重置密码(测试)",
+        "status": "passed"
+      },
+      "POST /auth/logout": {
+        "tested": true,
+        "description": "登出",
+        "status": "passed"
+      },
+      "GET /users/me": {
+        "tested": true,
+        "description": "获取当前用户",
+        "status": "passed"
+      },
+      "PUT /users/me": {
+        "tested": true,
+        "description": "更新用户信息",
+        "status": "passed"
+      },
+      "POST /users/me/change-password": {
+        "tested": true,
+        "description": "修改密码(用户端点)",
+        "status": "passed"
+      },
+      "GET /users/me/stats": {
+        "tested": true,
+        "description": "获取用户统计",
+        "status": "passed"
+      },
+      "POST /spaces": {
+        "tested": true,
+        "description": "创建空间",
+        "status": "passed"
+      },
+      "GET /spaces": {
+        "tested": true,
+        "description": "空间列表(搜索)",
+        "status": "passed"
+      },
+      "GET /spaces/40": {
+        "tested": true,
+        "description": "获取空间详情",
+        "status": "passed"
+      },
+      "PUT /spaces/40": {
+        "tested": true,
+        "description": "更新空间",
+        "status": "passed"
+      },
+      "GET /documents": {
+        "tested": true,
+        "description": "文档列表(分页)",
+        "status": "passed"
+      },
+      "POST /documents/search": {
+        "tested": true,
+        "description": "搜索文档",
+        "status": "passed"
+      },
+      "GET /documents/recent": {
+        "tested": true,
+        "description": "获取最近文档",
+        "status": "passed"
+      },
+      "POST /documents/upload": {
+        "tested": true,
+        "description": "上传文档",
+        "status": "passed"
+      },
+      "GET /documents/38": {
+        "tested": true,
+        "description": "获取文档详情",
+        "status": "passed"
+      },
+      "PUT /documents/38": {
+        "tested": true,
+        "description": "更新文档",
+        "status": "passed"
+      },
+      "GET /documents/38/content": {
+        "tested": true,
+        "description": "获取文档内容",
+        "status": "passed"
+      },
+      "GET /documents/38/preview": {
+        "tested": true,
+        "description": "预览文档",
+        "status": "passed"
+      },
+      "POST /documents/38/download": {
+        "tested": true,
+        "description": "下载文档",
+        "status": "passed"
+      },
+      "GET /documents/38/chunks": {
+        "tested": true,
+        "description": "获取文档块",
+        "status": "passed"
+      },
+      "POST /documents/38/process": {
+        "tested": true,
+        "description": "处理文档",
+        "status": "passed"
+      },
+      "POST /documents/import-url": {
+        "tested": true,
+        "description": "导入URL",
+        "status": "passed"
+      },
+      "GET /notes": {
+        "tested": true,
+        "description": "笔记列表(带标签)",
+        "status": "passed"
+      },
+      "POST /notes/search": {
+        "tested": true,
+        "description": "搜索笔记",
+        "status": "passed"
+      },
+      "GET /notes/recent": {
+        "tested": true,
+        "description": "获取最近笔记",
+        "status": "passed"
+      },
+      "GET /notes/graph": {
+        "tested": true,
+        "description": "获取笔记图谱(无参数)",
+        "status": "passed"
+      },
+      "POST /notes": {
+        "tested": true,
+        "description": "创建第二个笔记",
+        "status": "passed"
+      },
+      "GET /notes/36": {
+        "tested": true,
+        "description": "获取笔记详情",
+        "status": "passed"
+      },
+      "PUT /notes/36": {
+        "tested": true,
+        "description": "创建版本2",
+        "status": "passed"
+      },
+      "GET /notes/36/linked": {
+        "tested": true,
+        "description": "获取关联笔记",
+        "status": "passed"
+      },
+      "GET /notes/36/backlinks": {
+        "tested": true,
+        "description": "获取反向链接",
+        "status": "passed"
+      },
+      "POST /notes/36/links": {
+        "tested": true,
+        "description": "创建笔记链接",
+        "status": "passed"
+      },
+      "GET /notes/36/versions": {
+        "tested": true,
+        "description": "获取版本历史",
+        "status": "passed"
+      },
+      "GET /notes/36/export": {
+        "tested": true,
+        "description": "导出笔记",
+        "status": "passed"
+      },
+      "POST /notes/36/duplicate": {
+        "tested": true,
+        "description": "复制笔记",
+        "status": "passed"
+      },
+      "GET /notes/query": {
+        "tested": true,
+        "description": "查询相似笔记(GET)",
+        "status": "failed",
+        "error": "期望[200, 404, 405]，实际422"
+      },
+      "POST /notes/query": {
+        "tested": true,
+        "description": "查询相似笔记(POST)",
+        "status": "passed"
+      },
+      "POST /notes/merge": {
+        "tested": true,
+        "description": "合并笔记",
+        "status": "passed"
+      },
+      "DELETE /notes/36/links/1": {
+        "tested": true,
+        "description": "删除链接",
+        "status": "passed"
+      },
+      "GET /chat/models": {
+        "tested": true,
+        "description": "获取可用模型",
+        "status": "passed"
+      },
+      "GET /chat/conversations": {
+        "tested": true,
+        "description": "获取对话列表",
+        "status": "passed"
+      },
+      "GET /chat/conversations/stats": {
+        "tested": true,
+        "description": "获取对话统计",
+        "status": "passed"
+      },
+      "POST /chat/conversations": {
+        "tested": true,
+        "description": "创建对话(简化参数)",
+        "status": "passed"
+      },
+      "GET /chat/conversations/35": {
+        "tested": true,
+        "description": "获取对话详情",
+        "status": "passed"
+      },
+      "PUT /chat/conversations/35": {
+        "tested": true,
+        "description": "更新对话",
+        "status": "passed"
+      },
+      "POST /chat/conversations/35/messages": {
+        "tested": true,
+        "description": "发送消息",
+        "status": "failed",
+        "error": "期望2xx，实际400"
+      },
+      "GET /chat/conversations/35/branches": {
+        "tested": true,
+        "description": "获取分支列表",
+        "status": "passed"
+      },
+      "POST /chat/completions": {
+        "tested": true,
+        "description": "创建聊天完成",
+        "status": "passed"
+      },
+      "POST /chat/analyze-attachments": {
+        "tested": true,
+        "description": "分析附件(files)",
+        "status": "failed",
+        "error": "not enough values to unpack (expected 4, got 1)"
+      },
+      "GET /agents": {
+        "tested": true,
+        "description": "获取代理列表",
+        "status": "passed"
+      },
+      "GET /agents/1": {
+        "tested": true,
+        "description": "获取代理详情",
+        "status": "passed"
+      },
+      "POST /agents/1/execute": {
+        "tested": true,
+        "description": "执行代理: Deep Research",
+        "status": "passed"
+      },
+      "POST /agents": {
+        "tested": true,
+        "description": "创建代理(需要高级会员)",
+        "status": "passed"
+      },
+      "POST /agents/deep-research": {
+        "tested": true,
+        "description": "执行深度研究",
+        "status": "passed"
+      },
+      "GET /annotations/my": {
+        "tested": true,
+        "description": "获取我的标注",
+        "status": "passed"
+      },
+      "GET /annotations/statistics": {
+        "tested": true,
+        "description": "获取标注统计",
+        "status": "passed"
+      },
+      "GET /annotations/document/38": {
+        "tested": true,
+        "description": "获取文档标注",
+        "status": "passed"
+      },
+      "POST /annotations": {
+        "tested": true,
+        "description": "创建标注",
+        "status": "passed"
+      },
+      "GET /annotations/15": {
+        "tested": true,
+        "description": "获取标注详情",
+        "status": "passed"
+      },
+      "PUT /annotations/15": {
+        "tested": true,
+        "description": "更新标注",
+        "status": "passed"
+      },
+      "POST /annotations/batch": {
+        "tested": true,
+        "description": "批量创建标注",
+        "status": "passed"
+      },
+      "GET /annotations/document/38/pages": {
+        "tested": true,
+        "description": "获取页面范围标注",
+        "status": "passed"
+      },
+      "GET /annotations/document/38/pdf/1": {
+        "tested": true,
+        "description": "获取PDF页面标注",
+        "status": "passed"
+      },
+      "POST /annotations/export": {
+        "tested": true,
+        "description": "导出标注",
+        "status": "passed"
+      },
+      "POST /annotations/copy": {
+        "tested": true,
+        "description": "复制标注",
+        "status": "passed"
+      },
+      "POST /annotations/search": {
+        "tested": true,
+        "description": "搜索标注",
+        "status": "passed"
+      },
+      "GET /citations": {
+        "tested": true,
+        "description": "获取引用列表",
+        "status": "passed"
+      },
+      "POST /citations/search": {
+        "tested": true,
+        "description": "搜索引用",
+        "status": "passed"
+      },
+      "POST /citations/import-bibtex": {
+        "tested": true,
+        "description": "导入BibTeX",
+        "status": "passed"
+      },
+      "POST /citations/": {
+        "tested": true,
+        "description": "创建引用",
+        "status": "passed"
+      },
+      "GET /citations/16": {
+        "tested": true,
+        "description": "获取引用详情",
+        "status": "passed"
+      },
+      "PUT /citations/16": {
+        "tested": true,
+        "description": "更新引用",
+        "status": "passed"
+      },
+      "POST /citations/format": {
+        "tested": true,
+        "description": "格式化引用",
+        "status": "passed"
+      },
+      "POST /citations/export": {
+        "tested": true,
+        "description": "导出引用",
+        "status": "passed"
+      },
+      "POST /export/notes": {
+        "tested": true,
+        "description": "导出笔记(pdf)",
+        "status": "passed"
+      },
+      "POST /export/spaces": {
+        "tested": true,
+        "description": "导出空间",
+        "status": "passed"
+      },
+      "POST /export/documents": {
+        "tested": true,
+        "description": "导出文档(pdf)",
+        "status": "passed"
+      },
+      "POST /export/conversations": {
+        "tested": true,
+        "description": "导出对话",
+        "status": "passed"
+      },
+      "GET /ollama/status": {
+        "tested": true,
+        "description": "Ollama状态",
+        "status": "passed"
+      },
+      "GET /ollama/models": {
+        "tested": true,
+        "description": "获取Ollama模型",
+        "status": "passed"
+      },
+      "GET /ollama/recommended-models": {
+        "tested": true,
+        "description": "获取推荐模型",
+        "status": "passed"
+      },
+      "GET /ollama/models/qwen3:4b": {
+        "tested": true,
+        "description": "获取模型详情: qwen3:4b",
+        "status": "passed"
+      },
+      "POST /ollama/pull": {
+        "tested": true,
+        "description": "拉取Ollama模型",
+        "status": "passed"
+      },
+      "DELETE /ollama/models/invalid-model": {
+        "tested": true,
+        "description": "删除Ollama模型(测试)",
+        "status": "passed"
+      },
+      "POST /notes/batch-update": {
+        "tested": true,
+        "description": "批量更新笔记",
+        "status": "failed",
+        "error": "期望[200, 404]，实际405"
+      },
+      "POST /search/advanced": {
+        "tested": true,
+        "description": "高级搜索",
+        "status": "passed"
+      },
+      "DELETE /citations/16": {
+        "tested": true,
+        "description": "删除引用",
+        "status": "passed"
+      },
+      "DELETE /annotations/15": {
+        "tested": true,
+        "description": "删除标注",
+        "status": "passed"
+      },
+      "DELETE /notes/37": {
+        "tested": true,
+        "description": "删除笔记2",
+        "status": "passed"
+      },
+      "DELETE /notes/36": {
+        "tested": true,
+        "description": "删除笔记",
+        "status": "passed"
+      },
+      "DELETE /documents/38": {
+        "tested": true,
+        "description": "删除文档",
+        "status": "passed"
+      },
+      "DELETE /chat/conversations/35": {
+        "tested": true,
+        "description": "删除对话",
+        "status": "passed"
+      },
+      "DELETE /spaces/40": {
+        "tested": true,
+        "description": "删除空间",
+        "status": "passed"
+      }
+    }
+  },
+  "timestamp": "2025-07-21 22:16:42"
+}

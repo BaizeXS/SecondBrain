@@ -1,0 +1,20 @@
+# docker-compose.override.yml
+# 本地开发环境的覆盖配置
+# 这个文件会自动被docker-compose读取，覆盖docker-compose.yml中的配置
+
+services:
+  backend:
+    # 为macOS和Windows添加特殊的主机名映射
+    # host.docker.internal 允许容器访问宿主机的服务
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    
+    # 开发环境下的额外环境变量
+    environment:
+      # 确保Ollama配置正确
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_ENABLED=true
+      
+      # 开发环境调试设置
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
